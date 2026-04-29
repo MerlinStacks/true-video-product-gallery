@@ -1,0 +1,22 @@
+{
+    "$schema": "https://schemas.wp.org/trunk/block.json",
+    "apiVersion": 3,
+    "name": "tvpg/product-video",
+    "version": "1.4.0",
+    "title": "Product Video",
+    "category": "woocommerce",
+    "icon": "video-alt3",
+    "description": "Manage product video URL and thumbnail for True Video Product Gallery.",
+    "textdomain": "true-video-product-gallery",
+    "supports": {
+        "inserter": false,
+        "html": false,
+        "reusable": false,
+        "multiple": false
+    },
+    "usesContext": [
+        "postId",
+        "postType"
+    ],
+    "editorScript": "tvpg-block-editor"
+}

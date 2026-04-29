@@ -1,0 +1,10 @@
+/**
+ * Swiper Slim CSS — only the module styles TVPG needs.
+ *
+ * @package TVPG
+ * @since   1.5.0
+ */
+@import 'swiper/css';
+@import 'swiper/css/navigation';
+@import 'swiper/css/thumbs';
+@import 'swiper/css/free-mode';

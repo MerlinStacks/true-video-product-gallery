@@ -1,0 +1,21 @@
+{
+  "name": "true-video-product-gallery",
+  "version": "1.6.0",
+  "private": true,
+  "description": "Build tools for True Video Product Gallery assets",
+  "scripts": {
+    "build:swiper": "rollup -c rollup.config.mjs",
+    "build:js": "npx -y terser assets/js/tvpg-frontend.js -o assets/js/tvpg-frontend.min.js --compress --mangle && npx -y terser assets/js/tvpg-admin-product.js -o assets/js/tvpg-admin-product.min.js --compress --mangle && npx -y terser assets/js/tvpg-admin-settings.js -o assets/js/tvpg-admin-settings.min.js --compress --mangle && npx -y terser assets/js/tvpg-block-editor.js -o assets/js/tvpg-block-editor.min.js --compress --mangle",
+    "build:css": "npx -y clean-css-cli assets/css/tvpg-frontend.css -o assets/css/tvpg-frontend.min.css && npx -y clean-css-cli assets/css/tvpg-admin.css -o assets/css/tvpg-admin.min.css",
+    "build": "npm run build:swiper && npm run build:js && npm run build:css",
+    "watch": "npx -y chokidar-cli \"assets/**/*.{js,css}\" --exclude \"*.min.*\" -c \"npm run build\""
+  },
+  "devDependencies": {
+    "swiper": "^11.0.0",
+    "rollup": "^4.0.0",
+    "@rollup/plugin-node-resolve": "^15.0.0",
+    "@rollup/plugin-terser": "^0.4.0",
+    "rollup-plugin-postcss": "^4.0.0",
+    "cssnano": "^7.0.0"
+  }
+}
