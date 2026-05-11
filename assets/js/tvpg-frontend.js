@@ -52,6 +52,7 @@
         if (!cards.length) return;
 
         var reducedMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+        var supportsDesktopHover = window.matchMedia && window.matchMedia('(hover: hover) and (pointer: fine)').matches;
 
         function getProviderFromIframe(iframe) {
             var src = iframe.getAttribute('src') || '';
@@ -137,15 +138,17 @@
                 pauseMedia(card);
             });
 
-            hoverTarget.addEventListener('touchstart', function () {
-                playMedia(card);
-                setTimeout(function () {
-                    pauseMedia(card);
-                }, 1400);
-            }, { passive: true });
+            if (!supportsDesktopHover) {
+                hoverTarget.addEventListener('touchstart', function () {
+                    playMedia(card);
+                    setTimeout(function () {
+                        pauseMedia(card);
+                    }, 1400);
+                }, { passive: true });
+            }
         });
 
-        if (reducedMotion || !('IntersectionObserver' in window)) return;
+        if (reducedMotion || supportsDesktopHover || !('IntersectionObserver' in window)) return;
 
         var seen = new WeakSet();
         var observer = new IntersectionObserver(function (entries) {
