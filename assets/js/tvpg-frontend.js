@@ -18,6 +18,36 @@
         var canRun = (typeof tvpgParams !== 'undefined') && !!tvpgParams.archiveSwap;
         if (!canRun) return;
 
+        document.querySelectorAll('.product, .product-small').forEach(function (productCard) {
+            var existing = productCard.querySelector('.tvpg-loop-media');
+            if (existing) return;
+
+            var template = productCard.querySelector('.tvpg-loop-secondary-template');
+            if (!template || !template.innerHTML.trim()) return;
+
+            var imageTarget = productCard.querySelector('.box-image .image-fade_in_back, .box-image a, .woocommerce-LoopProduct-link, a.woocommerce-LoopProduct-link');
+            if (!imageTarget) return;
+
+            var primaryWrap = document.createElement('div');
+            primaryWrap.className = 'tvpg-loop-primary-media';
+            while (imageTarget.firstChild) {
+                primaryWrap.appendChild(imageTarget.firstChild);
+            }
+
+            var secondaryWrap = document.createElement('div');
+            secondaryWrap.className = 'tvpg-loop-secondary-media';
+            secondaryWrap.setAttribute('aria-hidden', 'true');
+            secondaryWrap.innerHTML = template.innerHTML;
+
+            var container = document.createElement('div');
+            container.className = 'tvpg-loop-media';
+            container.setAttribute('data-tvpg-loop-media', '1');
+            container.appendChild(primaryWrap);
+            container.appendChild(secondaryWrap);
+
+            imageTarget.appendChild(container);
+        });
+
         var cards = document.querySelectorAll('.tvpg-loop-media');
         if (!cards.length) return;
 
