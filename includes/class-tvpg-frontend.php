@@ -157,6 +157,56 @@ class TVPG_Frontend {
 	}
 
 	/**
+	 * Filter loop thumbnail HTML so secondary media is injected in image area.
+	 *
+	 * @param string       $html              Post thumbnail HTML.
+	 * @param int          $post_id           Post ID.
+	 * @param int          $post_thumbnail_id Thumbnail attachment ID.
+	 * @param string|array $size              Requested size.
+	 * @param string|array $attr              Thumbnail attributes.
+	 * @return string
+	 */
+	public function filter_loop_product_thumbnail( $html, $post_id, $post_thumbnail_id, $size, $attr ) {
+		if ( is_admin() || ! ( is_shop() || is_product_taxonomy() || is_product_category() || is_product_tag() ) ) {
+			return $html;
+		}
+
+		if ( 'product' !== get_post_type( $post_id ) ) {
+			return $html;
+		}
+
+		$product = wc_get_product( $post_id );
+		if ( ! $product ) {
+			return $html;
+		}
+
+		$secondary_markup = '';
+		$video_url        = get_post_meta( $product->get_id(), '_tvpg_video_url', true );
+
+		if ( $video_url ) {
+			$secondary_markup = $this->get_loop_video_markup( $video_url, $product );
+		}
+
+		if ( '' === $secondary_markup ) {
+			$gallery_ids = $product->get_gallery_image_ids();
+			$first_id    = ! empty( $gallery_ids ) ? absint( $gallery_ids[0] ) : 0;
+			if ( $first_id > 0 ) {
+				$secondary_markup = wp_get_attachment_image( $first_id, 'woocommerce_thumbnail', false, array(
+					'class'    => 'tvpg-loop-secondary-image',
+					'loading'  => 'lazy',
+					'decoding' => 'async',
+				) );
+			}
+		}
+
+		if ( '' === $secondary_markup ) {
+			return $html;
+		}
+
+		return '<div class="tvpg-loop-media" data-tvpg-loop-media="1"><div class="tvpg-loop-primary-media">' . $html . '</div><div class="tvpg-loop-secondary-media" aria-hidden="true">' . $secondary_markup . '</div></div>';
+	}
+
+	/**
 	 * Close loop media wrapper.
 	 *
 	 * @return void
