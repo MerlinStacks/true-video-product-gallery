@@ -62,6 +62,12 @@
         var cards = document.querySelectorAll('.tvpg-loop-media');
         if (!cards.length) return;
 
+        document.querySelectorAll('.products.equalize-box').forEach(function (grid) {
+            if (!grid.querySelector('.tvpg-has-loop-media')) return;
+            grid.classList.remove('equalize-box');
+            grid.classList.remove('has-equal-box-heights');
+        });
+
         cards.forEach(function (card) {
             var productCard = card.closest('.product, .product-small');
             if (productCard) {
