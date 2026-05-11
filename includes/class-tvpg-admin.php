@@ -117,6 +117,7 @@ class TVPG_Admin {
             'mute_autoplay'   => $boolean_arg,
             'show_arrows'     => $boolean_arg,
             'enable_lightbox' => $boolean_arg,
+            'archive_swap'    => $boolean_arg,
             'image_delay'     => array(
                 'type'              => 'integer',
                 'minimum'           => 1,
@@ -307,6 +308,7 @@ class TVPG_Admin {
             'mute_autoplay'   => isset( $params['mute_autoplay'] ) ? (bool) $params['mute_autoplay'] : $current['mute_autoplay'],
             'show_arrows'     => isset( $params['show_arrows'] ) ? (bool) $params['show_arrows'] : $current['show_arrows'],
             'enable_lightbox' => isset( $params['enable_lightbox'] ) ? (bool) $params['enable_lightbox'] : $current['enable_lightbox'],
+            'archive_swap'    => isset( $params['archive_swap'] ) ? (bool) $params['archive_swap'] : $current['archive_swap'],
             'video_sizing'    => isset( $params['video_sizing'] ) && in_array( $params['video_sizing'], $valid_sizing, true )
                 ? $params['video_sizing']
                 : $current['video_sizing'],

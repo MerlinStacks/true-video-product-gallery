@@ -199,6 +199,12 @@
                 checked: settings.enable_lightbox,
                 onChange: (val) => updateSetting('enable_lightbox', val),
             }),
+            el(ToggleControl, {
+                label: __('Enable Archive Hover Swap', 'true-video-product-gallery'),
+                help: __('Show secondary image/video on shop and category product-card hover. Disable this if your theme conflicts with archive media output.', 'true-video-product-gallery'),
+                checked: settings.archive_swap,
+                onChange: (val) => updateSetting('archive_swap', val),
+            }),
             el('div', { style: { height: '16px' } }),
             el(components.RadioControl, {
                 label: __('Slide Transition', 'true-video-product-gallery'),
@@ -258,6 +264,7 @@
                 'show_controls',
                 'show_arrows',
                 'enable_lightbox',
+                'archive_swap',
             ];
             return toggles.reduce((sum, key) => sum + (settings[key] ? 1 : 0), 0);
         }, [settings]);

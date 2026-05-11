@@ -26,6 +26,21 @@ if ( ! defined( 'ABSPATH' ) ) {
 class TVPG_Frontend {
 
 	/**
+	 * Determine if archive/category media swap is enabled.
+	 *
+	 * Constant TVPG_DISABLE_ARCHIVE_SWAP always wins as emergency override.
+	 *
+	 * @return bool
+	 */
+	private function is_archive_swap_enabled() {
+		if ( defined( 'TVPG_DISABLE_ARCHIVE_SWAP' ) && TVPG_DISABLE_ARCHIVE_SWAP ) {
+			return false;
+		}
+
+		return (bool) TVPG_Settings::get( 'archive_swap', true );
+	}
+
+	/**
 	 * Enqueue frontend scripts and styles.
 	 *
 	 * IMP-05: Conditionally loads Swiper only when the gallery has >1 slide.
@@ -37,6 +52,7 @@ class TVPG_Frontend {
 	public function enqueue_scripts() {
 		$is_single_product = is_product();
 		$is_product_loop   = is_shop() || is_product_taxonomy() || is_product_category() || is_product_tag();
+		$archive_swap_on   = $this->is_archive_swap_enabled();
 
 		if ( ! $is_single_product && ! $is_product_loop ) {
 			return;
@@ -79,7 +95,7 @@ class TVPG_Frontend {
 		wp_localize_script( 'tvpg-frontend', 'tvpgParams', array(
 			'settings'    => $settings,
 			'needsSlider' => $needs_slider,
-			'archiveSwap' => $is_product_loop,
+			'archiveSwap' => $is_product_loop && $archive_swap_on,
 		) );
 
 		// Dynamic CSS for video sizing.
@@ -119,6 +135,10 @@ class TVPG_Frontend {
 	 * @return string
 	 */
 	public function filter_loop_product_thumbnail( $html, $post_id, $post_thumbnail_id, $size, $attr ) {
+		if ( ! $this->is_archive_swap_enabled() ) {
+			return $html;
+		}
+
 		if ( is_admin() || ! ( is_shop() || is_product_taxonomy() || is_product_category() || is_product_tag() ) ) {
 			return $html;
 		}
@@ -170,6 +190,10 @@ class TVPG_Frontend {
 	 * @return string
 	 */
 	public function filter_loop_wc_product_image( $html, $product, $size, $attr, $placeholder, $image ) {
+		if ( ! $this->is_archive_swap_enabled() ) {
+			return $html;
+		}
+
 		if ( is_admin() || ! ( is_shop() || is_product_taxonomy() || is_product_category() || is_product_tag() ) ) {
 			return $html;
 		}
@@ -237,6 +261,10 @@ class TVPG_Frontend {
 	 * @return void
 	 */
 	public function render_loop_media_payload() {
+		if ( ! $this->is_archive_swap_enabled() ) {
+			return;
+		}
+
 		if ( ! ( is_shop() || is_product_taxonomy() || is_product_category() || is_product_tag() ) ) {
 			return;
 		}

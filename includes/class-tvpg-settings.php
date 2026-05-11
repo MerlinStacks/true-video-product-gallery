@@ -45,6 +45,7 @@ class TVPG_Settings {
         'transition_effect' => 'slide',  // 'slide' or 'fade'.
         'show_arrows'      => true,      // Show Swiper prev/next navigation arrows.
         'enable_lightbox'  => true,      // Enable image lightbox/zoom on click.
+        'archive_swap'     => true,      // Enable archive/category hover swap media.
     );
 
     /**

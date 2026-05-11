@@ -72,6 +72,8 @@ class TVPG_Loader {
     private function define_public_hooks() {
         require_once TVPG_PATH . 'includes/class-tvpg-frontend.php';
         self::$frontend = new TVPG_Frontend();
+        $archive_swap_enabled = ! ( defined( 'TVPG_DISABLE_ARCHIVE_SWAP' ) && TVPG_DISABLE_ARCHIVE_SWAP )
+            && (bool) TVPG_Settings::get( 'archive_swap', true );
 
         add_action( 'wp_enqueue_scripts', array( self::$frontend, 'enqueue_scripts' ) );
         
@@ -85,9 +87,11 @@ class TVPG_Loader {
         add_action( 'init', array( self::$frontend, 'register_shortcode' ) );
         add_filter( 'woocommerce_available_variation', array( self::$frontend, 'add_variation_video_data' ), 10, 3 );
         add_filter( 'wp_resource_hints', array( self::$frontend, 'add_resource_hints' ), 10, 2 );
-        add_filter( 'post_thumbnail_html', array( self::$frontend, 'filter_loop_product_thumbnail' ), 20, 5 );
-        add_filter( 'woocommerce_product_get_image', array( self::$frontend, 'filter_loop_wc_product_image' ), 20, 6 );
-        if ( method_exists( self::$frontend, 'render_loop_media_payload' ) ) {
+        if ( $archive_swap_enabled ) {
+            add_filter( 'post_thumbnail_html', array( self::$frontend, 'filter_loop_product_thumbnail' ), 20, 5 );
+            add_filter( 'woocommerce_product_get_image', array( self::$frontend, 'filter_loop_wc_product_image' ), 20, 6 );
+        }
+        if ( $archive_swap_enabled && method_exists( self::$frontend, 'render_loop_media_payload' ) ) {
             add_action( 'woocommerce_after_shop_loop_item_title', array( self::$frontend, 'render_loop_media_payload' ), 1 );
         }
     }

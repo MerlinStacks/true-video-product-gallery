@@ -5,7 +5,7 @@ Tags: woocommerce, video, product gallery, youtube, vimeo, tiktok, instagram
 Requires at least: 6.4
 Tested up to: 6.8
 Requires PHP: 8.0
-Stable tag: 1.7.3
+Stable tag: 1.7.4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -70,6 +70,10 @@ Yes, this plugin requires WooCommerce to be installed and active.
 4. Global settings page with preload options
 
 == Changelog ==
+
+= 1.7.4 =
+* NEW: Added admin setting "Enable Archive Hover Swap" as a UI kill switch for archive/category loop media swap
+* IMPROVED: Archive swap runtime now respects the new setting while still supporting constant override
 
 = 1.7.3 =
 * FIX: Prevent Flatsome hover back-image from overriding TVPG loop video/image swap
