@@ -62,6 +62,13 @@
         var cards = document.querySelectorAll('.tvpg-loop-media');
         if (!cards.length) return;
 
+        function setImportantStyles(el, styles) {
+            if (!el) return;
+            Object.keys(styles).forEach(function (prop) {
+                el.style.setProperty(prop, styles[prop], 'important');
+            });
+        }
+
         function disableThemeEqualize(grid) {
             if (!grid || !grid.querySelector('.tvpg-has-loop-media')) return;
             grid.classList.remove('equalize-box');
@@ -91,32 +98,38 @@
             var primaryMedia = card.querySelector('.tvpg-loop-primary-media');
             var secondaryMedia = card.querySelector('.tvpg-loop-secondary-media');
             if (primaryMedia) {
-                card.style.setProperty('display', 'block', 'important');
-                card.style.setProperty('position', 'relative', 'important');
-                card.style.setProperty('width', '100%', 'important');
-                primaryMedia.style.setProperty('opacity', '1', 'important');
-                primaryMedia.style.setProperty('visibility', 'visible', 'important');
-                primaryMedia.style.setProperty('display', 'block', 'important');
-                primaryMedia.style.setProperty('position', 'relative', 'important');
-                primaryMedia.style.setProperty('z-index', '2', 'important');
-                primaryMedia.querySelectorAll('img, picture, source').forEach(function (node) {
-                    if (node.tagName && node.tagName.toLowerCase() === 'img') {
-                        node.style.setProperty('display', 'block', 'important');
-                        node.style.setProperty('opacity', '1', 'important');
-                        node.style.setProperty('visibility', 'visible', 'important');
-                        node.style.setProperty('position', 'relative', 'important');
-                        node.style.setProperty('z-index', '2', 'important');
-                        node.style.setProperty('width', '100%', 'important');
-                        node.style.setProperty('height', 'auto', 'important');
-                    }
+                setImportantStyles(card, {
+                    display: 'block',
+                    position: 'relative',
+                    width: '100%'
+                });
+                setImportantStyles(primaryMedia, {
+                    opacity: '1',
+                    visibility: 'visible',
+                    display: 'block',
+                    position: 'relative',
+                    'z-index': '2'
+                });
+                primaryMedia.querySelectorAll('img').forEach(function (img) {
+                    setImportantStyles(img, {
+                        display: 'block',
+                        opacity: '1',
+                        visibility: 'visible',
+                        position: 'relative',
+                        'z-index': '2',
+                        width: '100%',
+                        height: 'auto'
+                    });
                 });
             }
             if (secondaryMedia) {
-                secondaryMedia.style.setProperty('opacity', '0', 'important');
-                secondaryMedia.style.setProperty('visibility', 'hidden', 'important');
-                secondaryMedia.style.setProperty('position', 'absolute', 'important');
-                secondaryMedia.style.setProperty('inset', '0', 'important');
-                secondaryMedia.style.setProperty('z-index', '3', 'important');
+                setImportantStyles(secondaryMedia, {
+                    opacity: '0',
+                    visibility: 'hidden',
+                    position: 'absolute',
+                    inset: '0',
+                    'z-index': '3'
+                });
             }
 
             var imageWrap = card.parentElement;
@@ -147,10 +160,14 @@
             card.classList.add('tvpg-loop-active');
             var host = card.closest('.product-small, .product, li.product');
             if (host) host.classList.add('tvpg-loop-active');
-            primaryMedia.style.setProperty('opacity', '0', 'important');
-            primaryMedia.style.setProperty('visibility', 'hidden', 'important');
-            mediaWrap.style.setProperty('opacity', '1', 'important');
-            mediaWrap.style.setProperty('visibility', 'visible', 'important');
+            setImportantStyles(primaryMedia, {
+                opacity: '0',
+                visibility: 'hidden'
+            });
+            setImportantStyles(mediaWrap, {
+                opacity: '1',
+                visibility: 'visible'
+            });
             var video = mediaWrap.querySelector('video');
             var iframe = mediaWrap.querySelector('iframe');
 
@@ -180,10 +197,14 @@
             card.classList.remove('tvpg-loop-active');
             var host = card.closest('.product-small, .product, li.product');
             if (host) host.classList.remove('tvpg-loop-active');
-            primaryMedia.style.setProperty('opacity', '1', 'important');
-            primaryMedia.style.setProperty('visibility', 'visible', 'important');
-            mediaWrap.style.setProperty('opacity', '0', 'important');
-            mediaWrap.style.setProperty('visibility', 'hidden', 'important');
+            setImportantStyles(primaryMedia, {
+                opacity: '1',
+                visibility: 'visible'
+            });
+            setImportantStyles(mediaWrap, {
+                opacity: '0',
+                visibility: 'hidden'
+            });
             var video = mediaWrap.querySelector('video');
             var iframe = mediaWrap.querySelector('iframe');
 
