@@ -12,6 +12,13 @@ Some themes (e.g. Divi, Flatsome, or custom themes) do not use the standard WooC
     *   **MutationObserver Enforcer**: We use a MutationObserver to detect and restore video content when Flatsome's aggressive DOM rewriting overwrites the gallery.
     *   **Global Event Listeners**: We listen for variation changes globally on the document to bypass theme-specific form wrapping or event suppression.
 
+### 1.1 Flatsome Product Category / Shop Cards (Archive Hover Video)
+Flatsome loop cards can bypass standard WooCommerce thumbnail filters.
+*   **Implementation**: This plugin uses a dual strategy for archive media swap:
+    *   WooCommerce image filters (`post_thumbnail_html`, `woocommerce_product_get_image`) where available.
+    *   A per-card fallback payload (`.tvpg-loop-secondary-template`) that frontend JS injects into Flatsome's visible image container.
+*   **Result**: Hover video and mobile in-view preview work in category/shop cards even when Flatsome rewrites card markup.
+
 ### 2. Elementor Pro / Page Builders
 If you use Elementor Pro's "Product Images" widget, it uses its own internal renderer and ignores standard WooCommerce gallery plugins.
 *   **Fix**: Do not use the "Product Images" widget. Instead, use the "Product Content" widget or a specific "WooCommerce Hook" widget that renders the `woocommerce_before_single_product_summary` hook.
@@ -47,3 +54,8 @@ Our gallery initializes when the page loads (via deferred vanilla JS).
 *   **Symptom**: The gallery layout might shift or the "Click to Pause" video feature might not work immediately.
 *   **Fix**: Exclude `tvpg-frontend.js` from "Delay execution" lists if you experience interactivity issues.
 
+### Archive Video Performance (SEO / Core Web Vitals)
+*   **Video preload**: Self-hosted archive preview videos use `preload="none"` and `fetchpriority="low"` to avoid competing with primary product images (LCP).
+*   **Poster fallback**: Archive preview videos use a poster image (custom thumbnail when available, else product thumbnail) to reduce layout shifts and early media decode costs.
+*   **Mobile control**: On touch devices, previews only play while cards are sufficiently in-view, then pause when out-of-view to reduce CPU/network usage.
+*   **Slow network heuristic**: Archive media swap is automatically disabled when the browser reports Data Saver enabled (`navigator.connection.saveData`) or slow connection classes (`slow-2g`, `2g`, `3g`).

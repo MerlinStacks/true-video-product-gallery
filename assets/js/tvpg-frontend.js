@@ -18,6 +18,15 @@
         var canRun = (typeof tvpgParams !== 'undefined') && !!tvpgParams.archiveSwap;
         if (!canRun) return;
 
+        var connection = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
+        var saveDataEnabled = !!(connection && connection.saveData);
+        var effectiveType = connection && connection.effectiveType ? String(connection.effectiveType).toLowerCase() : '';
+        var slowConnection = effectiveType === 'slow-2g' || effectiveType === '2g' || effectiveType === '3g';
+
+        if (saveDataEnabled || slowConnection) {
+            return;
+        }
+
         document.querySelectorAll('.product, .product-small').forEach(function (productCard) {
             var existing = productCard.querySelector('.tvpg-loop-media');
             if (existing) return;
