@@ -86,6 +86,7 @@ class TVPG_Loader {
         add_filter( 'woocommerce_available_variation', array( self::$frontend, 'add_variation_video_data' ), 10, 3 );
         add_filter( 'wp_resource_hints', array( self::$frontend, 'add_resource_hints' ), 10, 2 );
         add_filter( 'post_thumbnail_html', array( self::$frontend, 'filter_loop_product_thumbnail' ), 20, 5 );
+        add_filter( 'woocommerce_product_get_image', array( self::$frontend, 'filter_loop_wc_product_image' ), 20, 6 );
     }
 
     /**

@@ -203,7 +203,68 @@ class TVPG_Frontend {
 			return $html;
 		}
 
-		return '<div class="tvpg-loop-media" data-tvpg-loop-media="1"><div class="tvpg-loop-primary-media">' . $html . '</div><div class="tvpg-loop-secondary-media" aria-hidden="true">' . $secondary_markup . '</div></div>';
+		return $this->wrap_loop_media_html( $html, $secondary_markup );
+	}
+
+	/**
+	 * Filter WooCommerce product image HTML for archive cards.
+	 *
+	 * @param string     $html        Image HTML.
+	 * @param WC_Product $product     Product object.
+	 * @param string     $size        Requested image size.
+	 * @param array      $attr        Image attributes.
+	 * @param bool       $placeholder Placeholder usage flag.
+	 * @param string     $image       Raw image HTML.
+	 * @return string
+	 */
+	public function filter_loop_wc_product_image( $html, $product, $size, $attr, $placeholder, $image ) {
+		if ( is_admin() || ! ( is_shop() || is_product_taxonomy() || is_product_category() || is_product_tag() ) ) {
+			return $html;
+		}
+
+		if ( ! $product || ! is_a( $product, 'WC_Product' ) ) {
+			return $html;
+		}
+
+		if ( false !== strpos( $html, 'tvpg-loop-media' ) ) {
+			return $html;
+		}
+
+		$secondary_markup = '';
+		$video_url        = get_post_meta( $product->get_id(), '_tvpg_video_url', true );
+
+		if ( $video_url ) {
+			$secondary_markup = $this->get_loop_video_markup( $video_url, $product );
+		}
+
+		if ( '' === $secondary_markup ) {
+			$gallery_ids = $product->get_gallery_image_ids();
+			$first_id    = ! empty( $gallery_ids ) ? absint( $gallery_ids[0] ) : 0;
+			if ( $first_id > 0 ) {
+				$secondary_markup = wp_get_attachment_image( $first_id, 'woocommerce_thumbnail', false, array(
+					'class'    => 'tvpg-loop-secondary-image',
+					'loading'  => 'lazy',
+					'decoding' => 'async',
+				) );
+			}
+		}
+
+		if ( '' === $secondary_markup ) {
+			return $html;
+		}
+
+		return $this->wrap_loop_media_html( $html, $secondary_markup );
+	}
+
+	/**
+	 * Wrap primary image HTML with TVPG loop media layers.
+	 *
+	 * @param string $primary_html   Primary image HTML.
+	 * @param string $secondary_html Secondary media HTML.
+	 * @return string
+	 */
+	private function wrap_loop_media_html( $primary_html, $secondary_html ) {
+		return '<div class="tvpg-loop-media" data-tvpg-loop-media="1"><div class="tvpg-loop-primary-media">' . $primary_html . '</div><div class="tvpg-loop-secondary-media" aria-hidden="true">' . $secondary_html . '</div></div>';
 	}
 
 	/**
