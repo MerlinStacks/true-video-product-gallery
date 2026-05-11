@@ -102,9 +102,9 @@
             var imageWrap = card.parentElement;
             if (imageWrap) {
                 imageWrap.querySelectorAll('img.back-image').forEach(function (img) {
-                    img.style.setProperty('display', 'none', 'important');
-                    img.style.setProperty('opacity', '0', 'important');
-                    img.style.setProperty('visibility', 'hidden', 'important');
+                    if (img && img.parentNode) {
+                        img.parentNode.removeChild(img);
+                    }
                 });
             }
         });
