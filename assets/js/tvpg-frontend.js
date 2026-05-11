@@ -73,20 +73,14 @@
             });
         }
 
-        document.querySelectorAll('.products').forEach(function (grid) {
-            disableThemeEqualize(grid);
-
-            if (!('MutationObserver' in window)) return;
-            var eqObserver = new MutationObserver(function () {
+        function runEqualizeCleanup() {
+            document.querySelectorAll('.products').forEach(function (grid) {
                 disableThemeEqualize(grid);
             });
-            eqObserver.observe(grid, {
-                attributes: true,
-                attributeFilter: ['class', 'style'],
-                subtree: true,
-                childList: true
-            });
-        });
+        }
+
+        runEqualizeCleanup();
+        window.addEventListener('load', runEqualizeCleanup, { passive: true });
 
         cards.forEach(function (card) {
             var productCard = card.closest('.product, .product-small');
