@@ -1,6 +1,30 @@
 
 # Changelog
 
+## [Unreleased]
+
+## [1.7.0] - 2026-05-11
+### Added
+- **Gallery Auto-Scroll Controls**: Added global settings to auto-scroll through slides with configurable image delay while always waiting for active video playback to finish before advancing.
+- **Transition Effect Setting**: Added lightweight transition mode selector (`slide` default, optional `fade`) with safe runtime fallback to `slide` when fade support is unavailable.
+- **Keyboard-Accessible Settings Tabs**: Admin settings tabs now support Arrow Left/Right plus Home/End navigation with proper roving tab focus.
+
+### Changed
+- **Modern Settings Experience**: Refreshed settings page layout with improved visual hierarchy, cleaner cards, section metadata, and a right-side quick notes panel.
+- **Persistent Admin Context**: Settings page now remembers the last active tab between visits.
+
+### Improved
+- **Unsaved Changes UX**: Added dirty-state tracking, inline status chip, reset action, and sticky save bar for long settings pages.
+- **Video End Handling for Auto-Scroll**: Added end-of-playback detection for native video, YouTube, and Vimeo embeds to keep auto-scroll timing consistent.
+
+### Added
+- **Archive Media Swap**: Product cards on WooCommerce shop/category/tag archives now support a secondary media layer that fades from the main image to video (or first gallery image fallback).
+- **Desktop Hover Playback**: Archive preview videos now play continuously while hovered and pause on hover-out, resuming from the last playback position on re-hover.
+- **Flatsome Loop Compatibility**: Added loop-media wrapper hooks compatible with Flatsome product-card image markup.
+
+### Improved
+- **Conditional Frontend Loading**: Frontend assets now load on product loop pages (shop/category/tag) in addition to single product pages.
+
 ## [1.6.0] - 2026-04-07
 ### Compatibility
 - Updated for WordPress 6.8+ and WooCommerce 9.x

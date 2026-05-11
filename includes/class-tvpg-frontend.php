@@ -35,7 +35,10 @@ class TVPG_Frontend {
 	 * @return void
 	 */
 	public function enqueue_scripts() {
-		if ( ! is_product() ) {
+		$is_single_product = is_product();
+		$is_product_loop   = is_shop() || is_product_taxonomy() || is_product_category() || is_product_tag();
+
+		if ( ! $is_single_product && ! $is_product_loop ) {
 			return;
 		}
 
@@ -44,12 +47,12 @@ class TVPG_Frontend {
 
 		// IMP-05: Determine if Swiper is needed (>1 slide or has video).
 		global $product;
-		if ( ! $product || ! is_a( $product, 'WC_Product' ) ) {
+		if ( $is_single_product && ( ! $product || ! is_a( $product, 'WC_Product' ) ) ) {
 			$product = wc_get_product( get_the_ID() );
 		}
 
-		$needs_slider = true;
-		if ( $product ) {
+		$needs_slider = false;
+		if ( $is_single_product && $product ) {
 			$gallery_count = count( $product->get_gallery_image_ids() );
 			$has_main      = (bool) $product->get_image_id();
 			$has_video     = (bool) get_post_meta( $product->get_id(), '_tvpg_video_url', true );
@@ -76,6 +79,7 @@ class TVPG_Frontend {
 		wp_localize_script( 'tvpg-frontend', 'tvpgParams', array(
 			'settings'    => $settings,
 			'needsSlider' => $needs_slider,
+			'archiveSwap' => $is_product_loop,
 		) );
 
 		// Dynamic CSS for video sizing.
@@ -101,6 +105,109 @@ class TVPG_Frontend {
 		}
 
 		wp_add_inline_style( 'tvpg-frontend', $custom_css );
+	}
+
+	/**
+	 * Add loop media wrapper opener for archive video/image swap.
+	 *
+	 * @return void
+	 */
+	public function render_loop_media_open() {
+		if ( ! ( is_shop() || is_product_taxonomy() || is_product_category() || is_product_tag() ) ) {
+			return;
+		}
+
+		echo '<div class="tvpg-loop-media" data-tvpg-loop-media="1">';
+	}
+
+	/**
+	 * Render secondary archive media (video or first gallery image).
+	 *
+	 * @return void
+	 */
+	public function render_loop_secondary_media() {
+		global $product;
+
+		if ( ! $product || ! is_a( $product, 'WC_Product' ) ) {
+			return;
+		}
+
+		$secondary_markup = '';
+		$video_url        = get_post_meta( $product->get_id(), '_tvpg_video_url', true );
+
+		if ( $video_url ) {
+			$secondary_markup = $this->get_loop_video_markup( $video_url, $product );
+		}
+
+		if ( '' === $secondary_markup ) {
+			$gallery_ids = $product->get_gallery_image_ids();
+			$first_id    = ! empty( $gallery_ids ) ? absint( $gallery_ids[0] ) : 0;
+			if ( $first_id > 0 ) {
+				$secondary_markup = wp_get_attachment_image( $first_id, 'woocommerce_thumbnail', false, array(
+					'class'    => 'tvpg-loop-secondary-image',
+					'loading'  => 'lazy',
+					'decoding' => 'async',
+				) );
+			}
+		}
+
+		if ( '' !== $secondary_markup ) {
+			echo '<div class="tvpg-loop-secondary-media" aria-hidden="true">' . $secondary_markup . '</div>';
+		}
+	}
+
+	/**
+	 * Close loop media wrapper.
+	 *
+	 * @return void
+	 */
+	public function render_loop_media_close() {
+		if ( ! ( is_shop() || is_product_taxonomy() || is_product_category() || is_product_tag() ) ) {
+			return;
+		}
+
+		echo '</div>';
+	}
+
+	/**
+	 * Build lightweight loop video markup suitable for hover/touch previews.
+	 *
+	 * @param string     $video_url Video URL from product meta.
+	 * @param WC_Product $product   Product object.
+	 * @return string
+	 */
+	private function get_loop_video_markup( $video_url, $product ) {
+		$info = TVPG_Video_Parser::get_video_info( $video_url );
+
+		if ( empty( $info['type'] ) ) {
+			return '';
+		}
+
+		if ( 'file' === $info['type'] ) {
+			return '<video class="tvpg-loop-secondary-video" preload="metadata" muted playsinline loop src="' . esc_url( $info['url'] ) . '" aria-label="' . esc_attr__( 'Product preview video', 'true-video-product-gallery' ) . '"></video>';
+		}
+
+		if ( 'youtube' === $info['type'] && ! empty( $info['id'] ) ) {
+			$src = 'https://www.youtube.com/embed/' . rawurlencode( $info['id'] ) . '?enablejsapi=1&playsinline=1&autoplay=0&mute=1&controls=0&rel=0&modestbranding=1';
+			return '<iframe class="tvpg-loop-secondary-video tvpg-loop-secondary-iframe" loading="lazy" src="' . esc_url( $src ) . '" allow="autoplay; encrypted-media; picture-in-picture" referrerpolicy="strict-origin-when-cross-origin" title="' . esc_attr__( 'Product preview video', 'true-video-product-gallery' ) . '"></iframe>';
+		}
+
+		if ( 'vimeo' === $info['type'] && ! empty( $info['id'] ) ) {
+			$src = 'https://player.vimeo.com/video/' . rawurlencode( $info['id'] ) . '?autoplay=0&muted=1&title=0&byline=0&portrait=0';
+			return '<iframe class="tvpg-loop-secondary-video tvpg-loop-secondary-iframe" loading="lazy" src="' . esc_url( $src ) . '" allow="autoplay; fullscreen; picture-in-picture" referrerpolicy="strict-origin-when-cross-origin" title="' . esc_attr__( 'Product preview video', 'true-video-product-gallery' ) . '"></iframe>';
+		}
+
+		$gallery_ids = $product->get_gallery_image_ids();
+		$first_id    = ! empty( $gallery_ids ) ? absint( $gallery_ids[0] ) : 0;
+		if ( $first_id > 0 ) {
+			return wp_get_attachment_image( $first_id, 'woocommerce_thumbnail', false, array(
+				'class'    => 'tvpg-loop-secondary-image',
+				'loading'  => 'lazy',
+				'decoding' => 'async',
+			) );
+		}
+
+		return '';
 	}
 
 	/**
@@ -178,7 +285,7 @@ class TVPG_Frontend {
 	 * @return string Modified template path.
 	 */
 	public function override_gallery_template( $template, $template_name, $template_path ) {
-		if ( strpos( $template_name, 'product-image' ) !== false ) {
+		if ( 'single-product/product-image.php' === $template_name ) {
 			$plugin_template = TVPG_PATH . 'templates/single-product/product-image.php';
 			if ( file_exists( $plugin_template ) ) {
 				return $plugin_template;
@@ -212,18 +319,6 @@ class TVPG_Frontend {
 	 */
 	public function render_gallery() {
 		TVPG_Gallery_Renderer::render();
-	}
-
-	/**
-	 * Passthrough for WooCommerce thumbnail HTML filter.
-	 *
-	 * @since 1.0.0
-	 * @param string $html          Default thumbnail HTML.
-	 * @param int    $attachment_id Attachment ID.
-	 * @return string Unmodified HTML.
-	 */
-	public function custom_thumbnail_html( $html, $attachment_id ) {
-		return $html;
 	}
 
 	/**
@@ -280,13 +375,11 @@ class TVPG_Frontend {
 			if ( $product_id > 0 ) {
 				$post    = $original_post;
 				$product = $original_product;
-				if ( $original_post ) {
-					setup_postdata( $original_post );
-				} else {
-					wp_reset_postdata();
-				}
+			if ( $original_post ) {
+				setup_postdata( $original_post );
 			}
 		}
+	}
 
 		return $output;
 	}

@@ -65,9 +65,12 @@ class TVPG_Admin {
      * @return void
      */
     public function enqueue_admin_assets( $hook ) {
+        $suffix = ( defined( 'SCRIPT_DEBUG' ) && SCRIPT_DEBUG ) ? '' : '.min';
+
         if ( 'toplevel_page_tvpg-settings' === $hook ) {
-            wp_enqueue_style( 'tvpg-admin-css', TVPG_URL . 'assets/css/tvpg-admin.css', array(), TVPG_VERSION );
-            wp_enqueue_script( 'tvpg-admin-js', TVPG_URL . 'assets/js/tvpg-admin-settings.js', array( 'wp-element', 'wp-i18n', 'wp-components', 'wp-api-fetch' ), TVPG_VERSION, true );
+            wp_enqueue_style( 'tvpg-admin-css', TVPG_URL . 'assets/css/tvpg-admin' . $suffix . '.css', array(), TVPG_VERSION );
+            wp_enqueue_script( 'tvpg-admin-js', TVPG_URL . 'assets/js/tvpg-admin-settings' . $suffix . '.js', array( 'wp-element', 'wp-i18n', 'wp-components', 'wp-api-fetch' ), TVPG_VERSION, true );
+            wp_set_script_translations( 'tvpg-admin-js', 'true-video-product-gallery' );
             wp_localize_script( 'tvpg-admin-js', 'tvpgSettings', array(
                 'root' => esc_url_raw( rest_url() ),
                 'nonce' => wp_create_nonce( 'wp_rest' ),
@@ -79,8 +82,8 @@ class TVPG_Admin {
         $screen = get_current_screen();
         if ( $screen && 'product' === $screen->id ) {
             wp_enqueue_media();
-            wp_enqueue_style( 'tvpg-admin-css', TVPG_URL . 'assets/css/tvpg-admin.css', array(), TVPG_VERSION ); // Added CSS
-            wp_enqueue_script( 'tvpg-admin-product-js', TVPG_URL . 'assets/js/tvpg-admin-product.js', array( 'jquery' ), TVPG_VERSION, true );
+            wp_enqueue_style( 'tvpg-admin-css', TVPG_URL . 'assets/css/tvpg-admin' . $suffix . '.css', array(), TVPG_VERSION );
+            wp_enqueue_script( 'tvpg-admin-product-js', TVPG_URL . 'assets/js/tvpg-admin-product' . $suffix . '.js', array( 'jquery' ), TVPG_VERSION, true );
 
             // IMP-03: Pass parse endpoint + global settings so JS doesn't duplicate parsing regex.
             wp_localize_script( 'tvpg-admin-product-js', 'tvpgGlobalSettings', array_merge(
@@ -108,11 +111,18 @@ class TVPG_Admin {
 
         $settings_args = array(
             'autoplay'        => $boolean_arg,
+            'gallery_autoscroll' => $boolean_arg,
             'loop'            => $boolean_arg,
             'show_controls'   => $boolean_arg,
             'mute_autoplay'   => $boolean_arg,
             'show_arrows'     => $boolean_arg,
             'enable_lightbox' => $boolean_arg,
+            'image_delay'     => array(
+                'type'              => 'integer',
+                'minimum'           => 1,
+                'maximum'           => 30,
+                'sanitize_callback' => 'absint',
+            ),
             'video_sizing'    => array(
                 'type'              => 'string',
                 'enum'              => TVPG_Settings::get_valid_values( 'video_sizing' ),
@@ -126,6 +136,11 @@ class TVPG_Admin {
             'video_preload'   => array(
                 'type'              => 'string',
                 'enum'              => TVPG_Settings::get_valid_values( 'video_preload' ),
+                'sanitize_callback' => 'sanitize_text_field',
+            ),
+            'transition_effect' => array(
+                'type'              => 'string',
+                'enum'              => TVPG_Settings::get_valid_values( 'transition_effect' ),
                 'sanitize_callback' => 'sanitize_text_field',
             ),
         );
@@ -180,23 +195,39 @@ class TVPG_Admin {
     }
 
     /**
-     * Parse a video URL and return embed info (IMP-03).
+     * Parse a video URL and return embed info via REST API.
      *
-     * Eliminates duplicated regex patterns in admin JS by providing a
-     * single server-side parsing endpoint. Also enables IMP-13 by
-     * returning embed data for TikTok/Instagram.
+     * IMP-RL: Enforces per-user rate limiting (10 requests per minute)
+     * to prevent abuse of the thumbnail/oEmbed fetch infrastructure.
      *
      * @since 1.3.0
+     * @since 1.6.0 Added rate limiting.
      * @param WP_REST_Request $request REST request with 'url' param.
      * @return WP_REST_Response Parsed video info or error.
      */
     public function parse_video_rest( $request ) {
+        // Rate limiting: max 10 requests/minute per user.
+        $rate_limit_key = 'tvpg_rate_' . get_current_user_id();
+        $attempts       = get_transient( $rate_limit_key );
+
+        if ( false === $attempts ) {
+            $attempts = 0;
+        }
+
+        if ( $attempts >= 10 ) {
+            return new WP_REST_Response(
+                array(
+                    'success' => false,
+                    'message' => __( 'Too many requests. Please wait a minute.', 'true-video-product-gallery' ),
+                ),
+                429
+            );
+        }
+
+        set_transient( $rate_limit_key, $attempts + 1, MINUTE_IN_SECONDS );
+
         $url  = $request->get_param( 'url' );
         $info = TVPG_Video_Parser::get_video_info( $url );
-
-        if ( ! $info ) {
-            return rest_ensure_response( array( 'success' => false, 'message' => 'Unrecognised video URL' ) );
-        }
 
         $embed_url = '';
         $thumb_url = '';
@@ -204,7 +235,7 @@ class TVPG_Admin {
         switch ( $info['type'] ) {
             case 'youtube':
                 $embed_url = 'https://www.youtube.com/embed/' . $info['id'] . '?autoplay=0&controls=1';
-                $thumb_url = 'https://img.youtube.com/vi/' . $info['id'] . '/maxresdefault.jpg';
+                $thumb_url = 'https://img.youtube.com/vi_webp/' . $info['id'] . '/maxresdefault.webp';
                 break;
             case 'vimeo':
                 $embed_url = 'https://player.vimeo.com/video/' . $info['id'] . '?autoplay=0';
@@ -257,9 +288,20 @@ class TVPG_Admin {
         $valid_sizing   = TVPG_Settings::get_valid_values( 'video_sizing' );
         $valid_position = TVPG_Settings::get_valid_values( 'video_position' );
         $valid_preload  = TVPG_Settings::get_valid_values( 'video_preload' );
+        $valid_effect   = TVPG_Settings::get_valid_values( 'transition_effect' );
+
+        $image_delay = isset( $params['image_delay'] ) ? absint( $params['image_delay'] ) : (int) $current['image_delay'];
+        if ( $image_delay < 1 ) {
+            $image_delay = 1;
+        }
+        if ( $image_delay > 30 ) {
+            $image_delay = 30;
+        }
 
         $new_settings = array(
             'autoplay'        => isset( $params['autoplay'] ) ? (bool) $params['autoplay'] : $current['autoplay'],
+            'gallery_autoscroll' => isset( $params['gallery_autoscroll'] ) ? (bool) $params['gallery_autoscroll'] : $current['gallery_autoscroll'],
+            'image_delay'     => $image_delay,
             'loop'            => isset( $params['loop'] ) ? (bool) $params['loop'] : $current['loop'],
             'show_controls'   => isset( $params['show_controls'] ) ? (bool) $params['show_controls'] : $current['show_controls'],
             'mute_autoplay'   => isset( $params['mute_autoplay'] ) ? (bool) $params['mute_autoplay'] : $current['mute_autoplay'],
@@ -274,6 +316,9 @@ class TVPG_Admin {
             'video_preload'   => isset( $params['video_preload'] ) && in_array( $params['video_preload'], $valid_preload, true )
                 ? $params['video_preload']
                 : $current['video_preload'],
+            'transition_effect' => isset( $params['transition_effect'] ) && in_array( $params['transition_effect'], $valid_effect, true )
+                ? $params['transition_effect']
+                : $current['transition_effect'],
         );
 
         TVPG_Settings::update( $new_settings );
@@ -321,19 +366,23 @@ class TVPG_Admin {
         ?>
         <div id="tvpg_video_options" class="panel woocommerce_options_panel tvpg-modern-panel">
             <div class="tvpg-product-grid">
-                
-                <!-- Left Column: Settings -->
                 <div class="tvpg-col-inputs">
                     <div class="tvpg-section-header">
                         <h3><?php esc_html_e( 'Video Configuration', 'true-video-product-gallery' ); ?></h3>
                         <p><?php esc_html_e( 'Add a video to your product gallery regardless of theme.', 'true-video-product-gallery' ); ?></p>
                     </div>
 
-                    <!-- Video Source -->
                     <div class="tvpg-form-group">
                         <label for="tvpg_video_url"><?php esc_html_e( 'Video Source (URL or File)', 'true-video-product-gallery' ); ?></label>
                         <div class="tvpg-input-row">
-                            <input type="text" name="tvpg_video_url" id="tvpg_video_url" value="<?php echo esc_attr( $video_url ); ?>" placeholder="<?php esc_attr_e('https://youtube.com/watch?v=...', 'true-video-product-gallery'); ?>">
+                            <input
+                                type="text"
+                                name="tvpg_video_url"
+                                id="tvpg_video_url"
+                                value="<?php echo esc_attr( $video_url ); ?>"
+                                placeholder="<?php esc_attr_e( 'https://youtube.com/watch?v=...', 'true-video-product-gallery' ); ?>"
+                                autocomplete="off"
+                            >
                         </div>
                         <div class="tvpg-actions-row">
                             <button type="button" class="button" id="tvpg_upload_video_btn">
@@ -344,12 +393,18 @@ class TVPG_Admin {
                         <p class="description"><?php esc_html_e( 'Supports YouTube, Vimeo, MP4, WebM, and OGG.', 'true-video-product-gallery' ); ?></p>
                     </div>
 
-                    <!-- Thumbnail -->
                     <?php $video_thumb = get_post_meta( $post->ID, '_tvpg_video_thumb_url', true ); ?>
                     <div class="tvpg-form-group">
                         <label for="tvpg_video_thumb_url"><?php esc_html_e( 'Custom Thumbnail', 'true-video-product-gallery' ); ?></label>
                         <div class="tvpg-input-row">
-                            <input type="text" name="tvpg_video_thumb_url" id="tvpg_video_thumb_url" value="<?php echo esc_attr( $video_thumb ); ?>" placeholder="<?php esc_attr_e('Select image...', 'true-video-product-gallery'); ?>">
+                            <input
+                                type="text"
+                                name="tvpg_video_thumb_url"
+                                id="tvpg_video_thumb_url"
+                                value="<?php echo esc_attr( $video_thumb ); ?>"
+                                placeholder="<?php esc_attr_e( 'Select image...', 'true-video-product-gallery' ); ?>"
+                                autocomplete="off"
+                            >
                         </div>
                         <div class="tvpg-actions-row">
                             <button type="button" class="button" id="tvpg_upload_thumb_btn">
@@ -361,27 +416,20 @@ class TVPG_Admin {
                     </div>
                 </div>
 
-                <!-- Right Column: Preview -->
                 <div class="tvpg-col-preview">
                     <h3><?php esc_html_e( 'Live Preview', 'true-video-product-gallery' ); ?></h3>
-                    
-                    <!-- Main Video -->
+
                     <div class="tvpg-preview-card">
                         <div id="tvpg_video_preview">
-                            <!-- JS injects here -->
                             <div class="tvpg-empty-state">
                                 <span class="dashicons dashicons-video-alt3"></span>
                                 <p><?php esc_html_e( 'No video selected', 'true-video-product-gallery' ); ?></p>
                             </div>
                         </div>
                     </div>
-                    
-                    <!-- Thumb Preview -->
-                    <h4 style="margin-top: 16px; margin-bottom: 8px; font-size: 11px; text-transform: uppercase; color: #64748b;"><?php esc_html_e( 'Thumbnail Preview', 'true-video-product-gallery' ); ?></h4>
-                    <div class="tvpg-preview-card tvpg-thumb-card" style="width: 80px; height: 80px; aspect-ratio: 1/1;">
-                        <div id="tvpg_thumb_preview">
-                             <!-- JS injects thumb here -->
-                        </div>
+                    <h4 class="tvpg-preview-subheading"><?php esc_html_e( 'Thumbnail Preview', 'true-video-product-gallery' ); ?></h4>
+                    <div class="tvpg-preview-card tvpg-thumb-card tvpg-thumb-preview-card">
+                        <div id="tvpg_thumb_preview"></div>
                     </div>
                 </div>
 
@@ -394,35 +442,37 @@ class TVPG_Admin {
                 $variations = $product->get_children();
                 $use_same_for_all = get_post_meta( $post->ID, '_tvpg_use_same_video', true );
             ?>
-            <div class="tvpg-variation-section" style="margin-top: 24px; padding-top: 24px; border-top: 1px solid #e2e8f0;">
+            <div class="tvpg-variation-section">
                 <div class="tvpg-section-header">
                     <h3><?php esc_html_e( 'Variation Videos', 'true-video-product-gallery' ); ?></h3>
                     <p><?php esc_html_e( 'Assign videos to specific variations, or use the main product video for all.', 'true-video-product-gallery' ); ?></p>
                 </div>
 
-                <div class="tvpg-form-group" style="margin-bottom: 20px;">
-                    <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                <div class="tvpg-form-group tvpg-variation-toggle-group">
+                    <label class="tvpg-checkbox-inline">
                         <input type="checkbox" name="tvpg_use_same_video" id="tvpg_use_same_video" value="yes" <?php checked( $use_same_for_all, 'yes' ); ?>>
                         <strong><?php esc_html_e( 'Use main product video for all variations', 'true-video-product-gallery' ); ?></strong>
                     </label>
-                    <p class="description" style="margin-left: 24px;"><?php esc_html_e( 'When enabled, all variations will display the main product video above.', 'true-video-product-gallery' ); ?></p>
+                    <p class="description tvpg-checkbox-description"><?php esc_html_e( 'When enabled, all variations will display the main product video above.', 'true-video-product-gallery' ); ?></p>
                 </div>
 
-                <div id="tvpg-variation-videos" style="<?php echo ( 'yes' === $use_same_for_all ) ? 'display: none;' : ''; ?>">
+                <div id="tvpg-variation-videos" class="<?php echo ( 'yes' === $use_same_for_all ) ? 'tvpg-is-hidden' : ''; ?>">
                     <?php if ( ! empty( $variations ) ) : ?>
-                    <table class="wp-list-table widefat fixed striped" style="margin-top: 16px;">
+                    <table class="wp-list-table widefat fixed striped tvpg-variation-table">
                         <thead>
                             <tr>
-                                <th style="width: 30%;"><?php esc_html_e( 'Variation', 'true-video-product-gallery' ); ?></th>
-                                <th style="width: 35%;"><?php esc_html_e( 'Video URL', 'true-video-product-gallery' ); ?></th>
-                                <th style="width: 35%;"><?php esc_html_e( 'Custom Thumbnail', 'true-video-product-gallery' ); ?></th>
+                                <th class="tvpg-col-variation"><?php esc_html_e( 'Variation', 'true-video-product-gallery' ); ?></th>
+                                <th class="tvpg-col-video"><?php esc_html_e( 'Video URL', 'true-video-product-gallery' ); ?></th>
+                                <th class="tvpg-col-thumb"><?php esc_html_e( 'Custom Thumbnail', 'true-video-product-gallery' ); ?></th>
                             </tr>
                         </thead>
                         <tbody>
                             <?php foreach ( $variations as $variation_id ) :
                                 $variation = wc_get_product( $variation_id );
-                                if ( ! $variation ) continue;
-                                
+                                if ( ! $variation ) {
+                                    continue;
+                                }
+
                                 $variation_name  = $variation->get_name();
                                 $variation_video = get_post_meta( $variation_id, '_tvpg_video_url', true );
                                 $variation_thumb = get_post_meta( $variation_id, '_tvpg_video_thumb_url', true );
@@ -430,26 +480,28 @@ class TVPG_Admin {
                             <tr>
                                 <td><strong><?php echo esc_html( $variation_name ); ?></strong></td>
                                 <td>
-                                    <div style="display: flex; gap: 8px; align-items: center;">
-                                        <input type="text" 
-                                               name="tvpg_variation_videos[<?php echo esc_attr( $variation_id ); ?>]" 
-                                               value="<?php echo esc_attr( $variation_video ); ?>" 
+                                    <div class="tvpg-inline-field-row">
+                                        <input type="text"
+                                               class="tvpg-inline-field-input"
+                                               name="tvpg_variation_videos[<?php echo esc_attr( $variation_id ); ?>]"
+                                               value="<?php echo esc_attr( $variation_video ); ?>"
                                                placeholder="<?php esc_attr_e( 'https://youtube.com/...', 'true-video-product-gallery' ); ?>"
-                                               style="flex: 1;">
+                                               autocomplete="off">
                                         <button type="button" class="button tvpg-upload-variation-video" data-variation-id="<?php echo esc_attr( $variation_id ); ?>">
-                                            <span class="dashicons dashicons-upload" style="margin-top: 3px;"></span>
+                                            <span class="dashicons dashicons-upload tvpg-inline-icon"></span>
                                         </button>
                                     </div>
                                 </td>
                                 <td>
-                                    <div style="display: flex; gap: 8px; align-items: center;">
-                                        <input type="text" 
-                                               name="tvpg_variation_thumbs[<?php echo esc_attr( $variation_id ); ?>]" 
-                                               value="<?php echo esc_attr( $variation_thumb ); ?>" 
+                                    <div class="tvpg-inline-field-row">
+                                        <input type="text"
+                                               class="tvpg-inline-field-input"
+                                               name="tvpg_variation_thumbs[<?php echo esc_attr( $variation_id ); ?>]"
+                                               value="<?php echo esc_attr( $variation_thumb ); ?>"
                                                placeholder="<?php esc_attr_e( 'Select image...', 'true-video-product-gallery' ); ?>"
-                                               style="flex: 1;">
+                                               autocomplete="off">
                                         <button type="button" class="button tvpg-upload-variation-thumb" data-variation-id="<?php echo esc_attr( $variation_id ); ?>">
-                                            <span class="dashicons dashicons-format-image" style="margin-top: 3px;"></span>
+                                            <span class="dashicons dashicons-format-image tvpg-inline-icon"></span>
                                         </button>
                                     </div>
                                 </td>
@@ -483,7 +535,10 @@ class TVPG_Admin {
             return;
         }
 
-        if ( ! isset( $_POST['tvpg_video_nonce'] ) || ! wp_verify_nonce( sanitize_key( wp_unslash( $_POST['tvpg_video_nonce'] ) ), 'tvpg_save_video_meta' ) ) {
+        if (
+            ! isset( $_POST['tvpg_video_nonce'] )
+            || ! wp_verify_nonce( sanitize_key( wp_unslash( $_POST['tvpg_video_nonce'] ) ), 'tvpg_save_video_meta' )
+        ) {
             return;
         }
 

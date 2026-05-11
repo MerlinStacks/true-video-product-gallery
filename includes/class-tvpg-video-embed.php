@@ -89,6 +89,7 @@ class TVPG_Video_Embed {
 		$use_autoplay = ( 'lazy' === $preload_mode ) ? 1 : ( $settings['autoplay'] ? 1 : 0 );
 		$params       = array(
 			'enablejsapi' => 1,
+			'origin'      => home_url(),
 			'rel'         => 0,
 			'autoplay'    => $use_autoplay,
 			'controls'    => $settings['show_controls'] ? 1 : 0,
@@ -100,13 +101,13 @@ class TVPG_Video_Embed {
 		}
 		$query     = http_build_query( $params );
 		$embed_url = 'https://www.youtube.com/embed/' . esc_attr( $id ) . '?' . $query;
-		$thumb_url = $poster ? $poster : 'https://img.youtube.com/vi/' . esc_attr( $id ) . '/maxresdefault.jpg';
+		$thumb_url = $poster ? $poster : 'https://img.youtube.com/vi_webp/' . esc_attr( $id ) . '/maxresdefault.webp';
 
 		if ( 'lazy' === $preload_mode ) {
 			return self::get_lazy_facade_html( $embed_url, $thumb_url, $sizing_class, $aria_label, 'youtube' );
 		}
 
-		return '<div class="tvpg-responsive-video ' . esc_attr( $sizing_class ) . '"><iframe src="' . esc_url( $embed_url ) . '" style="border:none;" allowfullscreen allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" loading="lazy" fetchpriority="low" title="' . $aria_label . '"></iframe></div>';
+		return '<div class="tvpg-responsive-video ' . esc_attr( $sizing_class ) . '"><iframe src="' . esc_url( $embed_url ) . '" style="border:none;" allowfullscreen allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" loading="lazy" fetchpriority="low" title="' . $aria_label . '" referrerpolicy="strict-origin-when-cross-origin"></iframe></div>';
 	}
 
 	/**
@@ -124,6 +125,7 @@ class TVPG_Video_Embed {
 		$id           = $info['id'];
 		$use_autoplay = ( 'lazy' === $preload_mode ) ? 1 : ( $settings['autoplay'] ? 1 : 0 );
 		$params       = array(
+			'api'       => 1,
 			'autoplay'  => $use_autoplay,
 			'loop'      => $settings['loop'] ? 1 : 0,
 			'controls'  => $settings['show_controls'] ? 1 : 0,
@@ -139,7 +141,7 @@ class TVPG_Video_Embed {
 			return self::get_lazy_facade_html( $embed_url, $thumb_url, $sizing_class, $aria_label, 'vimeo' );
 		}
 
-		return '<div class="tvpg-responsive-video ' . esc_attr( $sizing_class ) . '"><iframe src="' . esc_url( $embed_url ) . '" style="border:none;" allowfullscreen loading="lazy" fetchpriority="low" title="' . $aria_label . '"></iframe></div>';
+		return '<div class="tvpg-responsive-video ' . esc_attr( $sizing_class ) . '"><iframe src="' . esc_url( $embed_url ) . '" style="border:none;" allowfullscreen loading="lazy" fetchpriority="low" title="' . $aria_label . '" referrerpolicy="strict-origin-when-cross-origin"></iframe></div>';
 	}
 
 	/**
@@ -242,6 +244,7 @@ class TVPG_Video_Embed {
 	 * This defers loading of third-party scripts until user interaction.
 	 *
 	 * @since 1.2.0
+	 * @since 1.6.0 Added noscript fallback for accessibility.
 	 * @param string $embed_url   The full embed URL with parameters.
 	 * @param string $thumb_url   URL to the thumbnail image.
 	 * @param string $sizing_class CSS class for video sizing.
@@ -252,7 +255,21 @@ class TVPG_Video_Embed {
 	public static function get_lazy_facade_html( $embed_url, $thumb_url, $sizing_class, $aria_label, $provider ) {
 		$play_label = esc_attr__( 'Play Video', 'true-video-product-gallery' );
 
-		$html  = '<div class="tvpg-responsive-video tvpg-lazy-facade ' . esc_attr( $sizing_class ) . '" data-embed-url="' . esc_url( $embed_url ) . '" data-provider="' . esc_attr( $provider ) . '">';
+		// No-JS fallback: disable autoplay so the video doesn't surprise users.
+		$noscript_url = str_replace( 'autoplay=1', 'autoplay=0', $embed_url );
+
+		$html  = '';
+
+		// noscript fallback — users without JS still get the actual iframe.
+		$html .= '<noscript><div class="tvpg-responsive-video ' . esc_attr( $sizing_class ) . '">';
+		if ( 'vimeo' === $provider ) {
+			$html .= '<iframe src="' . esc_url( $noscript_url ) . '" style="border:none;" allowfullscreen loading="lazy" title="' . $aria_label . '" referrerpolicy="strict-origin-when-cross-origin"></iframe>';
+		} else {
+			$html .= '<iframe src="' . esc_url( $noscript_url ) . '" style="border:none;" allowfullscreen allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" loading="lazy" title="' . $aria_label . '" referrerpolicy="strict-origin-when-cross-origin"></iframe>';
+		}
+		$html .= '</div></noscript>';
+
+		$html .= '<div class="tvpg-responsive-video tvpg-lazy-facade ' . esc_attr( $sizing_class ) . '" data-embed-url="' . esc_url( $embed_url ) . '" data-provider="' . esc_attr( $provider ) . '">';
 
 		if ( $thumb_url ) {
 			// PSI-05: Explicit dimensions give the browser an aspect-ratio hint before CSS loads, preventing CLS.
@@ -292,7 +309,7 @@ class TVPG_Video_Embed {
 		// PSI-03: Static images replace live iframes for YouTube/Vimeo thumbs.
 		if ( 'youtube' === $type ) {
 			$id        = esc_attr( $info['id'] );
-			$thumb_src = 'https://img.youtube.com/vi/' . $id . '/hqdefault.jpg';
+			$thumb_src = 'https://img.youtube.com/vi_webp/' . $id . '/hqdefault.webp';
 			return '<img src="' . esc_url( $thumb_src ) . '" alt="' . $aria_label . '" style="width:100%;height:100%;object-fit:cover;" loading="lazy" decoding="async" tabindex="-1" aria-hidden="true">' . self::get_thumb_play_icon();
 		}
 
@@ -418,6 +435,7 @@ class TVPG_Video_Embed {
 				'aria-hidden'   => array(),
 				'tabindex'      => array(),
 			),
+			'noscript'   => array(),
 			'blockquote' => array(
 				'class'                  => array(),
 				'cite'                   => array(),

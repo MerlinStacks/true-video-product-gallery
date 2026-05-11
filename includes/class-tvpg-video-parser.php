@@ -189,7 +189,7 @@ class TVPG_Video_Parser {
         }
 
         $oembed_url = 'https://vimeo.com/api/oembed.json?url=' . rawurlencode( 'https://vimeo.com/' . $video_id );
-        $response   = wp_remote_get( $oembed_url, array( 'timeout' => 5 ) );
+        $response   = wp_remote_get( $oembed_url, array( 'timeout' => 15 ) );
 
         if ( is_wp_error( $response ) ) {
             // IMP-14: Cache failure for 1 hour to prevent repeated outbound requests.

@@ -40,7 +40,7 @@ class TVPG_Gallery_Renderer {
 		}
 
 		if ( ! $product ) {
-			if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
+			if ( defined( 'TVPG_DEBUG' ) && TVPG_DEBUG ) {
 				echo '<!-- TVPG Error: No valid product found for gallery -->';
 			}
 			return;
@@ -50,7 +50,7 @@ class TVPG_Gallery_Renderer {
 		$main_image_id  = $product->get_image_id();
 		$video_url      = get_post_meta( $product->get_id(), '_tvpg_video_url', true );
 
-		if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
+		if ( defined( 'TVPG_DEBUG' ) && TVPG_DEBUG ) {
 			echo '<!-- TVPG Debug: Product ID ' . esc_html( $product->get_id() ) . ' | Main Img: ' . esc_html( $main_image_id ) . ' | Count: ' . count( (array) $attachment_ids ) . ' -->';
 		}
 
@@ -82,7 +82,7 @@ class TVPG_Gallery_Renderer {
 			}
 		}
 		if ( ! empty( $schema_url ) ) {
-			TVPG_Schema::output( $product, $schema_url );
+			TVPG_Schema::enqueue( $product, $schema_url );
 		}
 	}
 
@@ -173,12 +173,15 @@ class TVPG_Gallery_Renderer {
 									printf( '<img src="%s" alt="%s" />', esc_url( wc_placeholder_img_src( 'woocommerce_single' ) ), esc_attr__( 'Placeholder', 'woocommerce' ) );
 								} else {
 									// PSI-06: First image is the likely LCP element — prioritise it.
-									$img_attrs = array();
+									$img_attrs = array(
+										'sizes' => '(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 600px',
+									);
 									if ( ! $first_image_hit ) {
 										$img_attrs = array(
 											'fetchpriority' => 'high',
 											'loading'       => 'eager',
 											'decoding'      => 'sync',
+											'sizes'         => '(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 600px',
 										);
 										$first_image_hit = true;
 									}

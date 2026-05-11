@@ -1,3 +1,17 @@
+# Build tools
 node_modules/
+
+# Plugin distribution
+*.zip
+
+# IDE / Editor
+.vscode/
+.idea/
+*.sublime-*
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Agent logs
 .agent/
-true-video-product-gallery.zip

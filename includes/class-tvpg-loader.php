@@ -79,13 +79,15 @@ class TVPG_Loader {
         add_action( 'after_setup_theme', array( self::$frontend, 'remove_default_gallery_support' ), 100 );
         
         // Add our custom gallery.
-        // BUG-02 fix: removed direct render_gallery action hook — the template override
-        // (override_gallery_template → product-image.php) handles rendering. Having both
-        // caused double gallery rendering on themes using the standard WC template system.
-        add_filter( 'woocommerce_single_product_image_thumbnail_html', array( self::$frontend, 'custom_thumbnail_html' ), 10, 2 );
+		// BUG-02 fix: removed direct render_gallery action hook — the template override
+		// (override_gallery_template → product-image.php) handles rendering. Having both
+		// caused double gallery rendering on themes using the standard WC template system.
         add_action( 'init', array( self::$frontend, 'register_shortcode' ) );
         add_filter( 'woocommerce_available_variation', array( self::$frontend, 'add_variation_video_data' ), 10, 3 );
         add_filter( 'wp_resource_hints', array( self::$frontend, 'add_resource_hints' ), 10, 2 );
+        add_action( 'woocommerce_before_shop_loop_item_title', array( self::$frontend, 'render_loop_media_open' ), 8 );
+        add_action( 'woocommerce_before_shop_loop_item_title', array( self::$frontend, 'render_loop_secondary_media' ), 12 );
+        add_action( 'woocommerce_before_shop_loop_item_title', array( self::$frontend, 'render_loop_media_close' ), 14 );
     }
 
     /**
@@ -98,4 +100,3 @@ class TVPG_Loader {
         return self::$frontend;
     }
 }
-

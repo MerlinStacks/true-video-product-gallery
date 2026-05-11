@@ -14,6 +14,105 @@
 (function () {
     'use strict';
 
+    function initArchiveMediaSwap() {
+        var canRun = (typeof tvpgParams !== 'undefined') && !!tvpgParams.archiveSwap;
+        if (!canRun) return;
+
+        var cards = document.querySelectorAll('.tvpg-loop-media');
+        if (!cards.length) return;
+
+        var reducedMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+        function getProviderFromIframe(iframe) {
+            var src = iframe.getAttribute('src') || '';
+            if (src.indexOf('youtube') !== -1) return 'youtube';
+            if (src.indexOf('vimeo') !== -1) return 'vimeo';
+            return null;
+        }
+
+        function playMedia(card) {
+            var mediaWrap = card.querySelector('.tvpg-loop-secondary-media');
+            if (!mediaWrap) return;
+
+            card.classList.add('tvpg-loop-active');
+            var video = mediaWrap.querySelector('video');
+            var iframe = mediaWrap.querySelector('iframe');
+
+            if (video) {
+                var p = video.play();
+                if (p && p.catch) p.catch(function () { });
+                return;
+            }
+
+            if (iframe && iframe.contentWindow) {
+                var provider = getProviderFromIframe(iframe);
+                if (provider === 'youtube') {
+                    iframe.contentWindow.postMessage('{"event":"command","func":"mute","args":[]}', 'https://www.youtube.com');
+                    iframe.contentWindow.postMessage('{"event":"command","func":"playVideo","args":[]}', 'https://www.youtube.com');
+                } else if (provider === 'vimeo') {
+                    iframe.contentWindow.postMessage('{"method":"setVolume", "value":0}', 'https://player.vimeo.com');
+                    iframe.contentWindow.postMessage('{"method":"play"}', 'https://player.vimeo.com');
+                }
+            }
+        }
+
+        function pauseMedia(card) {
+            var mediaWrap = card.querySelector('.tvpg-loop-secondary-media');
+            if (!mediaWrap) return;
+
+            card.classList.remove('tvpg-loop-active');
+            var video = mediaWrap.querySelector('video');
+            var iframe = mediaWrap.querySelector('iframe');
+
+            if (video) {
+                video.pause();
+                return;
+            }
+
+            if (iframe && iframe.contentWindow) {
+                var provider = getProviderFromIframe(iframe);
+                if (provider === 'youtube') {
+                    iframe.contentWindow.postMessage('{"event":"command","func":"pauseVideo","args":[]}', 'https://www.youtube.com');
+                } else if (provider === 'vimeo') {
+                    iframe.contentWindow.postMessage('{"method":"pause"}', 'https://player.vimeo.com');
+                }
+            }
+        }
+
+        cards.forEach(function (card) {
+            var mediaWrap = card.querySelector('.tvpg-loop-secondary-media');
+            if (!mediaWrap) return;
+
+            card.addEventListener('mouseenter', function () {
+                playMedia(card);
+            });
+
+            card.addEventListener('mouseleave', function () {
+                pauseMedia(card);
+            });
+        });
+
+        if (reducedMotion || !('IntersectionObserver' in window)) return;
+
+        var seen = new WeakSet();
+        var observer = new IntersectionObserver(function (entries) {
+            entries.forEach(function (entry) {
+                if (!entry.isIntersecting || entry.intersectionRatio < 0.6 || seen.has(entry.target)) return;
+                seen.add(entry.target);
+                entry.target.classList.add('tvpg-loop-active');
+                setTimeout(function () {
+                    entry.target.classList.remove('tvpg-loop-active');
+                }, 1200);
+            });
+        }, { threshold: [0.6] });
+
+        cards.forEach(function (card) {
+            observer.observe(card);
+        });
+    }
+
+    initArchiveMediaSwap();
+
     var mainSliderEl = document.querySelector('.tvpg-main-slider');
     if (!mainSliderEl) return;
 
@@ -75,15 +174,20 @@
     var rawSettings = (typeof tvpgParams !== 'undefined') ? tvpgParams.settings : {};
     var settings = {
         autoplay: toBool(rawSettings.autoplay),
+        gallery_autoscroll: toBool(rawSettings.gallery_autoscroll),
+        image_delay: parseInt(rawSettings.image_delay, 10) || 4,
         mute_autoplay: toBool(rawSettings.mute_autoplay),
         loop: toBool(rawSettings.loop),
         show_controls: toBool(rawSettings.show_controls),
         show_arrows: toBool(rawSettings.show_arrows),
         enable_lightbox: toBool(rawSettings.enable_lightbox),
+        transition_effect: rawSettings.transition_effect || 'slide',
         video_sizing: rawSettings.video_sizing || 'contain',
         video_position: rawSettings.video_position || 'second',
         video_preload: rawSettings.video_preload || 'lazy'
     };
+    if (settings.image_delay < 1) settings.image_delay = 1;
+    if (settings.image_delay > 30) settings.image_delay = 30;
     var needsSlider = (typeof tvpgParams !== 'undefined') ? toBool(tvpgParams.needsSlider) : true;
 
     // ── Swiper Init ──────────────────────────────────────────────────────────
@@ -91,6 +195,9 @@
     var mainSlider = null;
 
     if (needsSlider && typeof Swiper !== 'undefined') {
+        var galleryWrapper = mainSliderEl.closest('.tvpg-gallery-wrapper');
+        if (galleryWrapper) galleryWrapper.classList.add('tvpg-swiper-initialised');
+
         thumbSlider = new Swiper('.tvpg-thumb-slider', {
             spaceBetween: 10,
             slidesPerView: 4,
@@ -103,8 +210,11 @@
             }
         });
 
-        mainSlider = new Swiper('.tvpg-main-slider', {
+        var requestedEffect = settings.transition_effect === 'fade' ? 'fade' : 'slide';
+        var mainSliderConfig = {
             spaceBetween: 10,
+            effect: requestedEffect,
+            speed: 400,
             navigation: {
                 nextEl: '.swiper-button-next',
                 prevEl: '.swiper-button-prev',
@@ -114,8 +224,30 @@
             keyboard: { enabled: true, onlyInViewport: true },
             // IMP-09: touch events target wrapper to avoid video capture.
             touchEventsTarget: 'wrapper',
-        });
+            fadeEffect: { crossFade: true },
+        };
+
+        try {
+            mainSlider = new Swiper('.tvpg-main-slider', mainSliderConfig);
+        } catch (err) {
+            if (requestedEffect === 'fade') {
+                mainSliderConfig.effect = 'slide';
+                mainSlider = new Swiper('.tvpg-main-slider', mainSliderConfig);
+            } else {
+                throw err;
+            }
+        }
     }
+
+    // ── Quick-View Re-Init Listener ─────────────────────────────────────────
+    // Allows AJAX Quick-View popups to trigger gallery re-initialisation.
+    var hasQuickViewInit = false;
+    document.addEventListener('tvpg-init-gallery', function () {
+        if (hasQuickViewInit) return;
+        hasQuickViewInit = true;
+        // Trigger a window resize — Swiper re-calculates dimensions on resize.
+        window.dispatchEvent(new Event('resize'));
+    });
 
     // ── Video Playback Helpers ───────────────────────────────────────────────
     // Specific origins for postMessage — never use '*' to prevent leaking
@@ -146,11 +278,13 @@
                 if (settings.mute_autoplay) {
                     iframe.contentWindow.postMessage('{"event":"command","func":"mute","args":[]}', YT_ORIGIN);
                 }
+                iframe.contentWindow.postMessage('{"event":"command","func":"addEventListener","args":["onStateChange"]}', YT_ORIGIN);
                 iframe.contentWindow.postMessage('{"event":"command","func":"playVideo","args":[]}', YT_ORIGIN);
             } else if (provider === 'vimeo') {
                 if (settings.mute_autoplay) {
                     iframe.contentWindow.postMessage('{"method":"setVolume", "value":0}', VM_ORIGIN);
                 }
+                iframe.contentWindow.postMessage('{"method":"addEventListener","value":"ended"}', VM_ORIGIN);
                 iframe.contentWindow.postMessage('{"method":"play"}', VM_ORIGIN);
             }
         }
@@ -175,6 +309,104 @@
     function pauseAllVideos() {
         mainSliderEl.querySelectorAll('.swiper-slide').forEach(function (s) { pauseVideo(s); });
     }
+
+    // ── Auto Scroll State ───────────────────────────────────────────────────
+    var autoScrollTimer = null;
+
+    function clearAutoScrollTimer() {
+        if (autoScrollTimer) {
+            clearTimeout(autoScrollTimer);
+            autoScrollTimer = null;
+        }
+    }
+
+    function nextSlideAfterDelay(delayMs) {
+        if (!mainSlider || !settings.gallery_autoscroll) return;
+        clearAutoScrollTimer();
+        autoScrollTimer = setTimeout(function () {
+            if (!mainSlider || !settings.gallery_autoscroll) return;
+            mainSlider.slideNext();
+        }, delayMs);
+    }
+
+    function scheduleAutoAdvanceForActiveSlide() {
+        if (!mainSlider || !settings.gallery_autoscroll) {
+            clearAutoScrollTimer();
+            return;
+        }
+
+        var active = mainSlider.slides[mainSlider.activeIndex];
+        if (!active) return;
+
+        clearAutoScrollTimer();
+
+        // Image slide: move after configured delay.
+        if (!active.classList.contains('tvpg-video-slide')) {
+            nextSlideAfterDelay(settings.image_delay * 1000);
+            return;
+        }
+
+        // Video slide: do nothing here; advance happens when video ends.
+    }
+
+    function onNativeVideoEnded() {
+        if (!mainSlider || !settings.gallery_autoscroll) return;
+        nextSlideAfterDelay(150);
+    }
+
+    function bindNativeVideoEnded(slide) {
+        if (!slide || slide.__tvpgEndedBound) return;
+        var video = slide.querySelector('video');
+        if (!video) return;
+        video.addEventListener('ended', onNativeVideoEnded);
+        slide.__tvpgEndedBound = true;
+    }
+
+    function bindAllNativeVideoEnded() {
+        mainSliderEl.querySelectorAll('.swiper-slide.tvpg-video-slide').forEach(function (slide) {
+            bindNativeVideoEnded(slide);
+        });
+    }
+
+    function onIframeVideoEnded(iframeWindow) {
+        if (!mainSlider || !settings.gallery_autoscroll || !iframeWindow) return;
+        var active = mainSlider.slides[mainSlider.activeIndex];
+        if (!active) return;
+        var iframe = active.querySelector('iframe');
+        if (!iframe || iframe.contentWindow !== iframeWindow) return;
+        nextSlideAfterDelay(150);
+    }
+
+    window.addEventListener('message', function (event) {
+        if (event.origin === YT_ORIGIN) {
+            var ytData = event.data;
+            if (typeof ytData === 'string') {
+                try {
+                    ytData = JSON.parse(ytData);
+                } catch (err) {
+                    return;
+                }
+            }
+            if (ytData && ytData.info === 0) {
+                onIframeVideoEnded(event.source);
+            }
+            return;
+        }
+
+        if (event.origin === VM_ORIGIN) {
+            var vmData = event.data;
+            if (typeof vmData === 'string') {
+                try {
+                    vmData = JSON.parse(vmData);
+                } catch (err2) {
+                    return;
+                }
+            }
+            if (vmData && vmData.event === 'ended') {
+                onIframeVideoEnded(event.source);
+            }
+        }
+    });
 
     // ── Video Error Handling ──────────────────────────────────────────────────
     function attachVideoErrorHandler(container) {
@@ -239,6 +471,7 @@
         iframe.setAttribute('allow', 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture');
         iframe.setAttribute('loading', 'lazy');
         iframe.setAttribute('title', provider === 'youtube' ? 'YouTube video player' : 'Vimeo video player');
+        iframe.setAttribute('referrerpolicy', 'strict-origin-when-cross-origin');
 
         // IMP-11: Hide spinner when iframe finishes loading.
         iframe.addEventListener('load', function () {
@@ -246,6 +479,17 @@
         });
 
         attachIframeTimeout(iframe, facade);
+
+        if (provider === 'youtube') {
+            iframe.contentWindow && iframe.contentWindow.postMessage('{"event":"listening","id":1,"channel":"widget"}', YT_ORIGIN);
+        } else if (provider === 'vimeo') {
+            iframe.addEventListener('load', function () {
+                if (iframe.contentWindow) {
+                    iframe.contentWindow.postMessage('{"method":"addEventListener","value":"ended"}', VM_ORIGIN);
+                }
+            });
+        }
+
         facade.appendChild(iframe);
         facade.classList.add('tvpg-loaded');
     });
@@ -285,6 +529,14 @@
         facade.classList.add('tvpg-loaded');
 
         // Load the embed script (once per provider per page).
+        function showEmbedError(msg) {
+            clearSpinner();
+            var err = document.createElement('div');
+            err.className = 'tvpg-video-error';
+            err.innerHTML = '<svg viewBox="0 0 24 24" width="48" height="48" fill="none" stroke="#94a3b8" stroke-width="1.5"><path d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z"/></svg><p>' + (msg || 'Video unavailable') + '</p>';
+            facade.appendChild(err);
+        }
+
         function loadScript(src, key, onLoad) {
             if (window.__tvpg_loaded[key]) {
                 clearSpinner();
@@ -299,7 +551,9 @@
                 clearSpinner();
                 if (onLoad) onLoad();
             };
-            s.onerror = clearSpinner;
+            s.onerror = function () {
+                showEmbedError('Failed to load ' + key + ' embed');
+            };
             document.body.appendChild(s);
         }
 
@@ -308,12 +562,16 @@
                 // Re-render any new blockquotes.
                 if (window.tiktokEmbed && window.tiktokEmbed.lib) {
                     window.tiktokEmbed.lib.render(facade.querySelectorAll('.tiktok-embed'));
+                } else {
+                    showEmbedError('TikTok embed not supported');
                 }
             });
         } else if (embedType === 'instagram') {
             loadScript('https://www.instagram.com/embed.js', 'instagram', function () {
                 if (window.instgrm && window.instgrm.Embeds) {
                     window.instgrm.Embeds.process();
+                } else {
+                    showEmbedError('Instagram embed not supported');
                 }
             });
         }
@@ -322,11 +580,13 @@
     // ── Slide Change Events ──────────────────────────────────────────────────
     if (mainSlider) {
         mainSlider.on('slideChange', function () {
+            clearAutoScrollTimer();
             pauseAllVideos();
             var active = mainSlider.slides[mainSlider.activeIndex];
             if (active && active.classList.contains('tvpg-video-slide')) {
                 playVideo(active);
             }
+            scheduleAutoAdvanceForActiveSlide();
         });
 
         // Play initial video if active.
@@ -334,6 +594,9 @@
         if (initialSlide && initialSlide.classList.contains('tvpg-video-slide')) {
             playVideo(initialSlide);
         }
+
+        bindAllNativeVideoEnded();
+        scheduleAutoAdvanceForActiveSlide();
     }
 
     // ── Keyboard: Spacebar Play/Pause ─────────────────────────────────────
@@ -406,13 +669,25 @@
 
     function openLightbox(imgSrc, imgAlt) {
         if (lightboxOverlay) return;
+        // SECURITY: sanitise src to prevent javascript: URLs in lightbox.
+        var safeSrc = imgSrc ? String(imgSrc).replace(/[\x00-\x1F\x7F]/g, '') : '';
+        if (/^(javascript|data|vbscript):/i.test(safeSrc)) {
+            safeSrc = '';
+        }
         lightboxOverlay = document.createElement('div');
         lightboxOverlay.className = 'tvpg-lightbox';
         lightboxOverlay.setAttribute('role', 'dialog');
         lightboxOverlay.setAttribute('aria-label', imgAlt || 'Image zoom');
-        lightboxOverlay.innerHTML =
-            '<button class="tvpg-lightbox-close" aria-label="Close">&times;</button>' +
-            '<img src="' + imgSrc + '" alt="' + (imgAlt || '').replace(/"/g, '&quot;') + '" class="tvpg-lightbox-img">';
+        var img = document.createElement('img');
+        img.src = safeSrc;
+        img.alt = imgAlt || '';
+        img.className = 'tvpg-lightbox-img';
+        var closeBtn = document.createElement('button');
+        closeBtn.className = 'tvpg-lightbox-close';
+        closeBtn.setAttribute('aria-label', 'Close');
+        closeBtn.innerHTML = '&times;';
+        lightboxOverlay.appendChild(closeBtn);
+        lightboxOverlay.appendChild(img);
         document.body.appendChild(lightboxOverlay);
         document.body.style.overflow = 'hidden';
 
@@ -686,6 +961,14 @@
                 liveFirstImg.setAttribute('src', originalImage.src);
                 liveFirstImg.setAttribute('srcset', originalImage.srcset || '');
                 liveFirstImg.setAttribute('alt', originalImage.alt || '');
+            }
+
+            // Restore the thumbnail slider's first image as well.
+            if (thumbSlider && thumbSlider.slides && originalImage.index >= 0 && thumbSlider.slides[originalImage.index]) {
+                var tImg = thumbSlider.slides[originalImage.index].querySelector('img');
+                if (tImg && originalImage.src) {
+                    tImg.setAttribute('src', originalImage.src);
+                }
             }
 
             removeDynamicSlides();

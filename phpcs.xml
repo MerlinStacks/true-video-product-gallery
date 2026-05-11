@@ -1,0 +1,53 @@
+<?xml version="1.0"?>
+<ruleset name="True Video Product Gallery">
+    <description>WPCS rules for TVPG</description>
+
+    <!-- Scan these paths. -->
+    <file>includes</file>
+    <file>true-video-product-gallery.php</file>
+    <file>uninstall.php</file>
+    <file>templates</file>
+
+    <!-- Exclude vendor, tests, and assets. -->
+    <exclude-pattern>*/node_modules/*</exclude-pattern>
+    <exclude-pattern>*/vendor/*</exclude-pattern>
+    <exclude-pattern>*/tests/*</exclude-pattern>
+    <exclude-pattern>*/assets/*</exclude-pattern>
+
+    <!-- Use WordPress-Extra + WordPress-Docs. -->
+    <rule ref="WordPress-Extra">
+        <!-- Allow short array syntax (project uses [] not array()). -->
+        <exclude name="Generic.Arrays.DisallowShortArraySyntax"/>
+    </rule>
+
+    <rule ref="WordPress-Docs">
+        <!-- We don't require @param tags for every hook callback. -->
+        <exclude name="Squiz.Commenting.FunctionComment.MissingParamTag"/>
+    </rule>
+
+    <!-- PHP 8.0+ -->
+    <config name="testVersion" value="8.0-"/>
+    <rule ref="PHPCompatibilityWP"/>
+
+    <!-- Minimum WP version. -->
+    <config name="minimum_wp_version" value="6.4"/>
+
+    <!-- Text domain. -->
+    <rule ref="WordPress.WP.I18n">
+        <properties>
+            <property name="text_domain" type="array">
+                <element value="true-video-product-gallery"/>
+            </property>
+        </properties>
+    </rule>
+
+    <!-- Prefix for globals / hooks. -->
+    <rule ref="WordPress.NamingConventions.PrefixAllGlobals">
+        <properties>
+            <property name="prefixes" type="array">
+                <element value="tvpg"/>
+                <element value="TVPG"/>
+            </property>
+        </properties>
+    </rule>
+</ruleset>

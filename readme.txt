@@ -5,7 +5,7 @@ Tags: woocommerce, video, product gallery, youtube, vimeo, tiktok, instagram
 Requires at least: 6.4
 Tested up to: 6.8
 Requires PHP: 8.0
-Stable tag: 1.6.0
+Stable tag: 1.7.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -24,9 +24,12 @@ Replace the default WooCommerce product gallery with a powerful video-capable sl
 * **"Use Same Video for All"** – One checkbox to apply main video to all variations
 * **Custom Thumbnails** – Override auto-generated thumbnails with your own images
 * **Video Preload Strategy** – Choose Lazy, Metadata, or Auto preloading
+* **Gallery Auto-Scroll** – Optional slideshow mode with configurable image delay and video-finish-aware progression
+* **Transition Effects** – Lightweight slide default with optional fade transition
 * **Shortcode with product_id** – `[tvpg_gallery product_id="123"]` works anywhere
 * **REST API** – GET and POST endpoints for settings management
 * **Theme Compatibility** – Works with Flatsome and most WooCommerce themes
+* **Archive Product Hover Video** – Fades from product image to video on desktop hover with pause/resume behavior
 * **Modern Admin UI** – React-based settings dashboard
 
 = Requirements =
@@ -67,6 +70,14 @@ Yes, this plugin requires WooCommerce to be installed and active.
 4. Global settings page with preload options
 
 == Changelog ==
+
+= 1.7.0 =
+* NEW: Gallery auto-scroll with configurable image delay and video-finish-aware progression
+* NEW: Transition effect setting (Slide default, optional Fade with automatic fallback)
+* NEW: Keyboard tab navigation in settings (Arrow keys, Home, End)
+* IMPROVED: Modernized settings dashboard layout, spacing, and visual hierarchy
+* IMPROVED: Sticky unsaved-changes action bar with save/discard actions
+* IMPROVED: Settings page remembers last active tab
 
 = 1.6.0 =
 * COMPATIBILITY: Updated for WordPress 6.8+ and WooCommerce 9.x
@@ -144,6 +155,9 @@ Yes, this plugin requires WooCommerce to be installed and active.
 * Initial release
 
 == Upgrade Notice ==
+
+= 1.7.0 =
+Major settings UX refresh with new gallery auto-scroll and transition controls. Includes compatibility-safe fallbacks for storefront stability.
 
 = 1.2.0 =
 Major update with TikTok/Instagram support, performance improvements, security fixes, and new settings. Recommended for all users.

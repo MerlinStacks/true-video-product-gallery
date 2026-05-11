@@ -71,6 +71,24 @@ jQuery(document).ready(function ($) {
         video_sizing: 'contain'
     };
 
+    // Client-side cache for REST parse responses (30-second TTL).
+    var parseCache = {};
+    var CACHE_TTL_MS = 30000;
+
+    function getCachedParse(url) {
+        var entry = parseCache[url];
+        if (!entry) return null;
+        if (Date.now() - entry.time > CACHE_TTL_MS) {
+            delete parseCache[url];
+            return null;
+        }
+        return entry.data;
+    }
+
+    function setCachedParse(url, data) {
+        parseCache[url] = { data: data, time: Date.now() };
+    }
+
     function updateAllPreviews() {
         var url = $urlInput.val();
         var customThumb = $thumbInput.val();
@@ -83,6 +101,33 @@ jQuery(document).ready(function ($) {
         return str.replace(/"/g, '&quot;');
     }
 
+    // Helper: fetch parse data with client-side caching.
+    function fetchVideoParse(url, onSuccess, onError) {
+        var cached = getCachedParse(url);
+        if (cached) {
+            onSuccess(cached);
+            return;
+        }
+        if (typeof tvpgGlobalSettings === 'undefined' || !tvpgGlobalSettings.parseUrl) {
+            if (onError) onError();
+            return;
+        }
+        $.ajax({
+            url: tvpgGlobalSettings.parseUrl,
+            method: 'POST',
+            headers: { 'X-WP-Nonce': tvpgGlobalSettings.nonce },
+            contentType: 'application/json',
+            data: JSON.stringify({ url: url }),
+            success: function (resp) {
+                setCachedParse(url, resp);
+                onSuccess(resp);
+            },
+            error: function () {
+                if (onError) onError();
+            }
+        });
+    }
+
     function updateMainPreview(url) {
         $previewContainer.empty();
         if (!url) {
@@ -90,66 +135,43 @@ jQuery(document).ready(function ($) {
             return;
         }
 
-        var html = '';
         var fit = settings.video_sizing === 'cover' ? 'cover' : 'contain';
-
-        // Ensure booleans (WP localizes as strings sometimes, but good to be safe)
         var showControls = (settings.show_controls == "1" || settings.show_controls === true) ? 1 : 0;
         var doLoop = (settings.loop == "1" || settings.loop === true) ? 1 : 0;
-
         var isAutoplay = (settings.autoplay == "1" || settings.autoplay === true);
         var isMuted = (settings.mute_autoplay == "1" || settings.mute_autoplay === true);
 
-        // Basic Sanitization
         url = url.trim();
         if (url.toLowerCase().indexOf('javascript:') === 0 || url.toLowerCase().indexOf('data:') === 0) {
             $previewContainer.html('<div class="tvpg-empty-state"><p>Invalid Protocol</p></div>');
             return;
         }
 
-        // IMP-03: Delegate parsing to server-side TVPG_Video_Parser via REST.
-        // This eliminates duplicated regex and enables IMP-13 (TikTok/IG preview).
-        if (typeof tvpgGlobalSettings !== 'undefined' && tvpgGlobalSettings.parseUrl) {
-            $.ajax({
-                url: tvpgGlobalSettings.parseUrl,
-                method: 'POST',
-                headers: { 'X-WP-Nonce': tvpgGlobalSettings.nonce },
-                contentType: 'application/json',
-                data: JSON.stringify({ url: url }),
-                success: function (resp) {
-                    if (!resp.success) {
-                        $previewContainer.html('<div class="tvpg-empty-state"><span class="dashicons dashicons-video-alt3"></span><p>Invalid Video URL</p></div>');
-                        return;
-                    }
+        fetchVideoParse(url, function (resp) {
+            if (!resp.success) {
+                $previewContainer.html('<div class="tvpg-empty-state"><span class="dashicons dashicons-video-alt3"></span><p>Invalid Video URL</p></div>');
+                return;
+            }
 
-                    var html = '';
-                    if (resp.type === 'file') {
-                        var safeUrl = escapeAttribute(encodeURI(resp.embed_url));
-                        var attrs = 'style="width:100%; height:100%; object-fit:' + fit + ';"';
-                        if (showControls) attrs += ' controls';
-                        if (doLoop) attrs += ' loop';
-                        if (isAutoplay) { attrs += ' autoplay'; if (isMuted) attrs += ' muted'; }
-                        html = '<video src="' + safeUrl + '" ' + attrs + '></video>';
-                    } else if (resp.type === 'tiktok') {
-                        // IMP-13: Show TikTok embed preview.
-                        html = '<iframe src="' + escapeAttribute(resp.embed_url) + '" width="100%" height="100%" style="border:none;" style="object-fit:' + fit + '"></iframe>';
-                    } else if (resp.type === 'instagram') {
-                        // IMP-13: Show Instagram embed preview.
-                        html = '<iframe src="' + escapeAttribute(resp.embed_url) + '" width="100%" height="100%" style="border:none;" style="object-fit:' + fit + '"></iframe>';
-                    } else {
-                        // YouTube / Vimeo — use the embed_url from server.
-                        html = '<iframe width="100%" height="100%" src="' + escapeAttribute(resp.embed_url) + '" style="border:none;" allowfullscreen style="object-fit:' + fit + '"></iframe>';
-                    }
-
-                    $previewContainer.html(html);
-                },
-                error: function () {
-                    $previewContainer.html('<div class="tvpg-empty-state"><span class="dashicons dashicons-video-alt3"></span><p>Failed to parse URL</p></div>');
-                }
-            });
-        } else {
-            $previewContainer.html('<div class="tvpg-empty-state"><span class="dashicons dashicons-video-alt3"></span><p>Parser unavailable</p></div>');
-        }
+            var html = '';
+            if (resp.type === 'file') {
+                var safeUrl = escapeAttribute(encodeURI(resp.embed_url));
+                var attrs = 'style="width:100%; height:100%; object-fit:' + fit + ';"';
+                if (showControls) attrs += ' controls';
+                if (doLoop) attrs += ' loop';
+                if (isAutoplay) { attrs += ' autoplay'; if (isMuted) attrs += ' muted'; }
+                html = '<video src="' + safeUrl + '" ' + attrs + '></video>';
+            } else if (resp.type === 'tiktok') {
+                html = '<iframe src="' + escapeAttribute(resp.embed_url) + '" width="100%" height="100%" style="border:none;object-fit:' + fit + ';"></iframe>';
+            } else if (resp.type === 'instagram') {
+                html = '<iframe src="' + escapeAttribute(resp.embed_url) + '" width="100%" height="100%" style="border:none;object-fit:' + fit + ';"></iframe>';
+            } else {
+                html = '<iframe width="100%" height="100%" src="' + escapeAttribute(resp.embed_url) + '" style="border:none;object-fit:' + fit + ';" allowfullscreen></iframe>';
+            }
+            $previewContainer.html(html);
+        }, function () {
+            $previewContainer.html('<div class="tvpg-empty-state"><span class="dashicons dashicons-video-alt3"></span><p>Failed to parse URL</p></div>');
+        });
     }
 
     function updateThumbPreview(url, customThumb) {
@@ -171,36 +193,27 @@ jQuery(document).ready(function ($) {
             return;
         }
 
-        if (typeof tvpgGlobalSettings !== 'undefined' && tvpgGlobalSettings.parseUrl) {
-            $.ajax({
-                url: tvpgGlobalSettings.parseUrl,
-                method: 'POST',
-                headers: { 'X-WP-Nonce': tvpgGlobalSettings.nonce },
-                contentType: 'application/json',
-                data: JSON.stringify({ url: url }),
-                success: function (resp) {
-                    if (!resp.success) return;
+        fetchVideoParse(url, function (resp) {
+            if (!resp.success) return;
 
-                    var html = '';
-                    if (resp.type === 'file') {
-                        var safeUrl = escapeAttribute(encodeURI(resp.embed_url));
-                        html = '<video src="' + safeUrl + '" autoplay loop muted playsinline style="width:100%; height:100%; object-fit:cover;" tabindex="-1"></video>';
-                    } else if (resp.type === 'youtube') {
-                        var params = 'autoplay=1&mute=1&controls=0&loop=1&playlist=' + escapeAttribute(resp.id) + '&showinfo=0&modestbranding=1';
-                        html = '<iframe src="https://www.youtube.com/embed/' + escapeAttribute(resp.id) + '?' + params + '" style="border:none;" style="width:100%; height:100%; object-fit:cover; pointer-events:none;" tabindex="-1"></iframe>';
-                    } else if (resp.type === 'vimeo') {
-                        var params = 'background=1&autoplay=1&loop=1&byline=0&title=0&muted=1';
-                        html = '<iframe src="https://player.vimeo.com/video/' + escapeAttribute(resp.id) + '?' + params + '" style="border:none;" style="width:100%; height:100%; object-fit:cover; pointer-events:none;" tabindex="-1"></iframe>';
-                    } else if (resp.thumb_url) {
-                        html = '<img src="' + escapeAttribute(resp.thumb_url) + '" style="width:100%; height:100%; object-fit:cover;">';
-                    } else {
-                        html = '<div class="tvpg-empty-state"><span class="dashicons dashicons-video-alt3"></span></div>';
-                    }
+            var html = '';
+            if (resp.type === 'file') {
+                var safeUrl = escapeAttribute(encodeURI(resp.embed_url));
+                html = '<video src="' + safeUrl + '" autoplay loop muted playsinline style="width:100%; height:100%; object-fit:cover;" tabindex="-1"></video>';
+            } else if (resp.type === 'youtube') {
+                var params = 'autoplay=1&mute=1&controls=0&loop=1&playlist=' + escapeAttribute(resp.id) + '&showinfo=0&modestbranding=1';
+                html = '<iframe src="https://www.youtube.com/embed/' + escapeAttribute(resp.id) + '?' + params + '" style="border:none;width:100%;height:100%;object-fit:cover;pointer-events:none;" tabindex="-1"></iframe>';
+            } else if (resp.type === 'vimeo') {
+                var params = 'background=1&autoplay=1&loop=1&byline=0&title=0&muted=1';
+                html = '<iframe src="https://player.vimeo.com/video/' + escapeAttribute(resp.id) + '?' + params + '" style="border:none;width:100%;height:100%;object-fit:cover;pointer-events:none;" tabindex="-1"></iframe>';
+            } else if (resp.thumb_url) {
+                html = '<img src="' + escapeAttribute(resp.thumb_url) + '" style="width:100%; height:100%; object-fit:cover;">';
+            } else {
+                html = '<div class="tvpg-empty-state"><span class="dashicons dashicons-video-alt3"></span></div>';
+            }
 
-                    if (html) $thumbContainer.html(html);
-                }
-            });
-        }
+            if (html) $thumbContainer.html(html);
+        });
     }
 
     // IMP-10 fix: debounce to avoid double AJAX on blur+change.
@@ -301,4 +314,10 @@ jQuery(document).ready(function ($) {
 
     // Initial load
     updateAllPreviews();
+
+    // Memory-leak fix: clear cached wp.media frame references on page unload.
+    $(window).on('beforeunload', function () {
+        variationVideoFrames = {};
+        variationThumbFrames = {};
+    });
 });

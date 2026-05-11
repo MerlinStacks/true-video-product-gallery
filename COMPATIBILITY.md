@@ -19,8 +19,12 @@ If you use Elementor Pro's "Product Images" widget, it uses its own internal ren
 ### 3. AJAX / Quick View Plugins
 Our gallery initializes when the page loads (via deferred vanilla JS).
 *   **Symptom**: The gallery looks broken or empty in a "Quick View" popup.
-*   **Cause**: The popup content is loaded via AJAX after our script has already run.
-*   **Fix**: You need to trigger the init code when the popup opens. (We listen for standard window resize events, so triggering a resize often fixes it).
+*   **Cause**: The popup content is loaded via AJAX after our script has already run, so Swiper never gets initialised for the injected DOM.
+*   **Fix**: After the popup content is inserted, trigger a global re-init by dispatching a custom event:
+    ```javascript
+    window.dispatchEvent( new Event( 'tvpg-init-gallery' ) );
+    ```
+    If Swiper is not available (ad-blocked), the gallery will still show a basic scrollable grid via CSS fallback.
 
 ### 4. Personalization Plugins (e.g. Zakeke, PPOM, Personalise It)
 *   **Status**: **Compatible**.

@@ -22,7 +22,55 @@ if ( ! defined( 'ABSPATH' ) ) {
 class TVPG_Schema {
 
 	/**
-	 * Output Schema.org VideoObject structured data.
+	 * Pending schema outputs to be deferred to wp_footer.
+	 *
+	 * @var array
+	 */
+	private static $pending = array();
+
+	/**
+	 * Enqueue Schema.org VideoObject data to be output in the footer.
+	 *
+	 * Why defer: the inline <script> tag blocks the HTML parser. Moving it
+	 * to wp_footer removes this render-blocking cost with zero SEO downside
+	 * because search engines parse JSON-LD regardless of position.
+	 *
+	 * @since 1.6.0
+	 * @param WC_Product $product   The product object.
+	 * @param string     $video_url The video URL.
+	 * @return void
+	 */
+	public static function enqueue( $product, $video_url ) {
+		if ( empty( $video_url ) ) {
+			return;
+		}
+
+		self::$pending[] = array(
+			'product'   => $product,
+			'video_url' => $video_url,
+		);
+
+		if ( ! has_action( 'wp_footer', array( __CLASS__, 'print_all' ) ) ) {
+			add_action( 'wp_footer', array( __CLASS__, 'print_all' ), 1 );
+		}
+	}
+
+	/**
+	 * Output all pending Schema.org VideoObject markup.
+	 *
+	 * @since 1.6.0
+	 * @return void
+	 */
+	public static function print_all() {
+		foreach ( self::$pending as $item ) {
+			self::output( $item['product'], $item['video_url'] );
+		}
+	}
+
+	/**
+	 * Output Schema.org VideoObject structured data immediately.
+	 *
+	 * Use this directly when footer output is not possible (e.g., shortcodes).
 	 *
 	 * @since 1.2.0
 	 * @since 1.3.0 Moved from TVPG_Frontend to dedicated class.
@@ -64,7 +112,7 @@ class TVPG_Schema {
 
 		?>
 		<script type="application/ld+json">
-		<?php echo wp_json_encode( $schema, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE ); ?>
+		<?php echo wp_json_encode( $schema, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT ); ?>
 		</script>
 		<?php
 	}
@@ -83,7 +131,7 @@ class TVPG_Schema {
 		}
 
 		if ( 'youtube' === $video_info['type'] ) {
-			return 'https://img.youtube.com/vi/' . $video_info['id'] . '/maxresdefault.jpg';
+			return 'https://img.youtube.com/vi_webp/' . $video_info['id'] . '/maxresdefault.webp';
 		}
 
 		if ( 'vimeo' === $video_info['type'] ) {

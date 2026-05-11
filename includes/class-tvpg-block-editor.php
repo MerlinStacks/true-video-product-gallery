@@ -124,11 +124,12 @@ class TVPG_Block_Editor {
 		wp_enqueue_script(
 			'tvpg-block-editor',
 			TVPG_URL . 'assets/js/tvpg-block-editor' . $suffix . '.js',
-			array( 'wp-plugins', 'wp-edit-post', 'wp-editor', 'wp-element', 'wp-components', 'wp-data', 'wp-core-data', 'wp-i18n' ),
+			array( 'wp-plugins', 'wp-editor', 'wp-element', 'wp-components', 'wp-data', 'wp-core-data', 'wp-i18n' ),
 			TVPG_VERSION,
 			true
 		);
+		wp_set_script_translations( 'tvpg-block-editor', 'true-video-product-gallery' );
 
-		wp_enqueue_style( 'tvpg-admin', TVPG_URL . 'assets/css/tvpg-admin.css', array(), TVPG_VERSION );
+		wp_enqueue_style( 'tvpg-admin', TVPG_URL . 'assets/css/tvpg-admin' . $suffix . '.css', array(), TVPG_VERSION );
 	}
 }

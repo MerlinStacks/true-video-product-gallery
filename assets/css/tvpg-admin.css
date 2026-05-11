@@ -1,34 +1,166 @@
 body.toplevel_page_tvpg-settings {
-    background-color: #f0f2f5;
-    /* Modern dashboard bg */
+    background:
+        radial-gradient(circle at 4% 4%, #dbeafe 0, rgba(219, 234, 254, 0) 22%),
+        radial-gradient(circle at 96% 0%, #fde68a 0, rgba(253, 230, 138, 0) 20%),
+        #f6f8fc;
 }
 
 .tvpg-settings-wrapper {
-    max-width: 800px;
-    margin: 40px auto;
+    max-width: 1180px;
+    margin: 32px auto 48px;
+    padding: 0 18px;
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen-Sans, Ubuntu, Cantarell, "Helvetica Neue", sans-serif;
 }
 
 .tvpg-header {
     display: flex;
     justify-content: space-between;
-    align-items: center;
-    margin-bottom: 20px;
+    align-items: flex-start;
+    gap: 16px;
+    margin-bottom: 14px;
+    background: linear-gradient(145deg, #0f172a, #1e293b);
+    border-radius: 16px;
+    padding: 22px 24px;
+    box-shadow: 0 18px 28px -20px rgba(15, 23, 42, 0.9);
+}
+
+.tvpg-header-copy {
+    max-width: 640px;
 }
 
 .tvpg-header h1 {
-    font-size: 24px;
-    font-weight: 600;
-    color: #1e293b;
+    font-size: 28px;
+    font-weight: 700;
+    color: #f8fafc;
     margin: 0;
+}
+
+.tvpg-header p {
+    margin: 8px 0 0;
+    color: #bfdbfe;
+    font-size: 14px;
+}
+
+.tvpg-header-actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.tvpg-status-chip {
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 600;
+    padding: 7px 12px;
+    border: 1px solid transparent;
+    letter-spacing: 0.01em;
+}
+
+.tvpg-status-chip.is-synced {
+    background: rgba(16, 185, 129, 0.15);
+    color: #6ee7b7;
+    border-color: rgba(110, 231, 183, 0.4);
+}
+
+.tvpg-status-chip.is-dirty {
+    background: rgba(251, 191, 36, 0.16);
+    color: #fde68a;
+    border-color: rgba(253, 230, 138, 0.46);
+}
+
+.tvpg-settings-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin: 0 0 20px;
+}
+
+.tvpg-meta-pill {
+    background: #fff;
+    border: 1px solid #dbe5f4;
+    border-radius: 999px;
+    color: #334155;
+    font-size: 12px;
+    font-weight: 600;
+    padding: 6px 12px;
+}
+
+.tvpg-settings-main {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 300px;
+    gap: 18px;
+    align-items: start;
+}
+
+.tvpg-settings-primary {
+    min-width: 0;
+}
+
+.tvpg-settings-aside {
+    position: sticky;
+    top: 40px;
+}
+
+.tvpg-aside-card {
+    background: #fff;
+    border: 1px solid #dce6f5;
+    border-radius: 14px;
+    padding: 16px;
+    box-shadow: 0 10px 20px -20px rgba(15, 23, 42, 0.7);
+}
+
+.tvpg-aside-card h3 {
+    margin: 0 0 10px;
+    font-size: 14px;
+    color: #0f172a;
+}
+
+.tvpg-aside-card ul {
+    margin: 0;
+    padding-left: 18px;
+    display: grid;
+    gap: 8px;
+    color: #475569;
+    font-size: 13px;
+    line-height: 1.45;
+}
+
+.tvpg-panel-shell {
+    animation: tvpg-fade-slide 260ms cubic-bezier(0.22, 1, 0.36, 1);
+    transform-origin: top center;
+}
+
+.tvpg-tab-description {
+    margin: 0 0 14px;
+    color: #64748b;
+    font-size: 13px;
+}
+
+@keyframes tvpg-fade-slide {
+    from {
+        opacity: 0;
+        transform: translateY(8px) scale(0.995);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .tvpg-panel-shell {
+        animation: none;
+    }
 }
 
 .tvpg-card {
     background: #fff;
-    border-radius: 8px;
-    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
-    padding: 32px;
-    margin-bottom: 24px;
+    border-radius: 14px;
+    border: 1px solid #dce6f5;
+    box-shadow: 0 20px 30px -32px rgba(15, 23, 42, 0.85);
+    padding: 22px;
+    margin-bottom: 14px;
 }
 
 .tvpg-card h2 {
@@ -43,18 +175,21 @@ body.toplevel_page_tvpg-settings {
 .tvpg-card-desc {
     color: #64748b;
     font-size: 14px;
-    margin-bottom: 24px;
+    margin-bottom: 18px;
     margin-top: 0;
 }
 
 /* WP Component Overrides for "SaaS" feel */
 .components-toggle-control .components-base-control__field {
-    margin-bottom: 24px;
+    margin-bottom: 14px;
     display: flex;
     align-items: center;
     justify-content: space-between;
     flex-direction: row-reverse;
-    /* toggle on right */
+    border: 1px solid #e5edf8;
+    border-radius: 10px;
+    padding: 10px 12px;
+    background: #fcfdff;
 }
 
 .components-toggle-control .components-toggle-control__label {
@@ -64,57 +199,62 @@ body.toplevel_page_tvpg-settings {
 }
 
 .components-base-control__help {
-    margin-top: 4px;
+    margin-top: 6px;
     color: #94a3b8;
     font-size: 13px;
-    max-width: 80%;
+    max-width: 90%;
 }
 
 /* Button override */
 .tvpg-header .components-button.is-primary {
-    background-color: #2563eb;
-    /* Royal Blue */
-    border-color: #2563eb;
-    height: 40px;
-    padding: 0 24px;
-    font-weight: 500;
+    background-color: #22c55e;
+    border-color: #22c55e;
+    color: #082f13;
+    height: 38px;
+    padding: 0 16px;
+    font-weight: 700;
     font-size: 14px;
-    border-radius: 6px;
+    border-radius: 8px;
     transition: all 0.2s;
 }
 
 .tvpg-header .components-button.is-primary:hover {
-    background-color: #1d4ed8;
-    border-color: #1d4ed8;
-    box-shadow: 0 4px 12px rgba(37, 99, 235, 0.2);
+    background-color: #16a34a;
+    border-color: #16a34a;
+    box-shadow: 0 10px 16px -12px rgba(34, 197, 94, 0.8);
 }
 
 .tvpg-header .components-button.is-primary:focus {
-    box-shadow: 0 0 0 2px #fff, 0 0 0 4px #2563eb;
+    box-shadow: 0 0 0 2px #0f172a, 0 0 0 4px #22c55e;
+}
+
+.tvpg-header .components-button:not(.is-primary) {
+    color: #e2e8f0;
 }
 
 /* --- Tab Bar (Settings Page) --- */
 .tvpg-tab-bar {
     display: flex;
-    gap: 0;
-    border-bottom: 2px solid #e2e8f0;
-    margin-bottom: 24px;
+    gap: 8px;
+    margin-bottom: 12px;
+    overflow-x: auto;
+    padding-bottom: 2px;
 }
 
 .tvpg-tab-btn {
     display: inline-flex;
     align-items: center;
     gap: 6px;
-    padding: 12px 20px;
-    background: none;
-    border: none;
-    border-bottom: 2px solid transparent;
-    margin-bottom: -2px;
+    padding: 9px 12px;
+    background: #eef3fb;
+    border: 1px solid #dce6f5;
+    border-bottom: 1px solid #dce6f5;
+    border-radius: 10px;
     font-size: 14px;
     font-weight: 500;
-    color: #64748b;
+    color: #334155;
     cursor: pointer;
-    transition: color 0.15s, border-color 0.15s;
+    transition: all 0.15s;
     white-space: nowrap;
 }
 
@@ -125,13 +265,68 @@ body.toplevel_page_tvpg-settings {
 }
 
 .tvpg-tab-btn:hover {
-    color: #334155;
+    border-color: #c7d8f1;
+    background: #f8fbff;
 }
 
 .tvpg-tab-btn--active {
-    color: #2563eb;
-    border-bottom-color: #2563eb;
+    color: #0f172a;
+    border-color: #93c5fd;
+    background: #dbeafe;
     font-weight: 600;
+}
+
+.tvpg-notices {
+    margin-top: 12px;
+}
+
+.tvpg-sticky-savebar {
+    position: sticky;
+    bottom: 16px;
+    z-index: 30;
+    margin-top: 14px;
+    background: rgba(15, 23, 42, 0.96);
+    color: #f8fafc;
+    border: 1px solid rgba(148, 163, 184, 0.35);
+    border-radius: 12px;
+    padding: 12px 14px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 14px;
+    box-shadow: 0 20px 26px -24px rgba(15, 23, 42, 0.9);
+}
+
+.tvpg-sticky-savebar-copy {
+    display: grid;
+    gap: 2px;
+}
+
+.tvpg-sticky-savebar-copy strong {
+    font-size: 13px;
+    letter-spacing: 0.01em;
+}
+
+.tvpg-sticky-savebar-copy span {
+    font-size: 12px;
+    color: #cbd5e1;
+}
+
+.tvpg-sticky-savebar-actions {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+
+.tvpg-sticky-savebar .components-button:not(.is-primary) {
+    color: #e2e8f0;
+}
+
+.tvpg-sticky-savebar .components-button.is-primary {
+    background: #22c55e;
+    border-color: #22c55e;
+    color: #082f13;
+    font-weight: 700;
 }
 
 /* --- Product Page Layout (Modern Grid) --- */
@@ -298,6 +493,19 @@ body.toplevel_page_tvpg-settings {
     transform: scale(1.05);
 }
 
+.tvpg-thumb-preview-card {
+    width: 80px;
+    height: 80px;
+    aspect-ratio: 1/1;
+}
+
+.tvpg-preview-subheading {
+    margin: 16px 0 8px;
+    font-size: 11px;
+    text-transform: uppercase;
+    color: #64748b;
+}
+
 #tvpg_video_preview {
     width: 100%;
     height: 100%;
@@ -350,8 +558,90 @@ body.toplevel_page_tvpg-settings {
     color: #dc2626;
 }
 
+.tvpg-variation-section {
+    margin-top: 24px;
+    padding-top: 24px;
+    border-top: 1px solid #e2e8f0;
+}
+
+.tvpg-variation-toggle-group {
+    margin-bottom: 20px;
+}
+
+.tvpg-checkbox-inline {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+}
+
+.tvpg-checkbox-description {
+    margin-left: 24px;
+}
+
+.tvpg-is-hidden {
+    display: none;
+}
+
+.tvpg-variation-table {
+    margin-top: 16px;
+}
+
+.tvpg-col-variation {
+    width: 30%;
+}
+
+.tvpg-col-video,
+.tvpg-col-thumb {
+    width: 35%;
+}
+
+.tvpg-inline-field-row {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+
+.tvpg-inline-field-input {
+    flex: 1;
+}
+
+.tvpg-inline-icon {
+    margin-top: 3px;
+}
+
 /* Responsive */
 @media (max-width: 1100px) {
+    .tvpg-settings-main {
+        grid-template-columns: 1fr;
+    }
+
+    .tvpg-settings-aside {
+        position: static;
+    }
+
+    .tvpg-header {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .tvpg-header-actions {
+        justify-content: flex-start;
+        flex-wrap: wrap;
+    }
+
+    .tvpg-sticky-savebar {
+        flex-direction: column;
+        align-items: flex-start;
+        bottom: 8px;
+    }
+
+    .tvpg-sticky-savebar-actions {
+        width: 100%;
+        justify-content: flex-start;
+        flex-wrap: wrap;
+    }
+
     .tvpg-product-grid {
         grid-template-columns: 1fr;
     }

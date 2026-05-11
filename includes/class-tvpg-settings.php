@@ -34,12 +34,15 @@ class TVPG_Settings {
      */
     private static $defaults = array(
         'autoplay'         => false,
+        'gallery_autoscroll' => false,
+        'image_delay'      => 4,
         'loop'             => false,
         'show_controls'    => true,
         'mute_autoplay'    => true,
         'video_sizing'     => 'contain', // 'contain' (fit) or 'cover' (crop).
         'video_position'   => 'second',  // 'first', 'second', 'last'.
         'video_preload'    => 'lazy',    // 'lazy' (facade), 'metadata', 'auto'.
+        'transition_effect' => 'slide',  // 'slide' or 'fade'.
         'show_arrows'      => true,      // Show Swiper prev/next navigation arrows.
         'enable_lightbox'  => true,      // Enable image lightbox/zoom on click.
     );
@@ -124,6 +127,7 @@ class TVPG_Settings {
             'video_sizing'   => array( 'contain', 'cover' ),
             'video_position' => array( 'first', 'second', 'last' ),
             'video_preload'  => array( 'lazy', 'metadata', 'auto' ),
+            'transition_effect' => array( 'slide', 'fade' ),
         );
         return $valid[ $key ] ?? array();
     }
