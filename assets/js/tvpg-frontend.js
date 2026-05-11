@@ -71,10 +71,25 @@
             var primaryMedia = card.querySelector('.tvpg-loop-primary-media');
             var secondaryMedia = card.querySelector('.tvpg-loop-secondary-media');
             if (primaryMedia) {
+                card.style.setProperty('display', 'block', 'important');
+                card.style.setProperty('position', 'relative', 'important');
+                card.style.setProperty('width', '100%', 'important');
                 primaryMedia.style.setProperty('opacity', '1', 'important');
                 primaryMedia.style.setProperty('visibility', 'visible', 'important');
+                primaryMedia.style.setProperty('display', 'block', 'important');
                 primaryMedia.style.setProperty('position', 'relative', 'important');
                 primaryMedia.style.setProperty('z-index', '2', 'important');
+                primaryMedia.querySelectorAll('img, picture, source').forEach(function (node) {
+                    if (node.tagName && node.tagName.toLowerCase() === 'img') {
+                        node.style.setProperty('display', 'block', 'important');
+                        node.style.setProperty('opacity', '1', 'important');
+                        node.style.setProperty('visibility', 'visible', 'important');
+                        node.style.setProperty('position', 'relative', 'important');
+                        node.style.setProperty('z-index', '2', 'important');
+                        node.style.setProperty('width', '100%', 'important');
+                        node.style.setProperty('height', 'auto', 'important');
+                    }
+                });
             }
             if (secondaryMedia) {
                 secondaryMedia.style.setProperty('opacity', '0', 'important');
