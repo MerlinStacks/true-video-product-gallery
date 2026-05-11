@@ -65,6 +65,8 @@
             if (!mediaWrap) return;
 
             card.classList.add('tvpg-loop-active');
+            var host = card.closest('.product-small, .product, li.product');
+            if (host) host.classList.add('tvpg-loop-active');
             var video = mediaWrap.querySelector('video');
             var iframe = mediaWrap.querySelector('iframe');
 
@@ -91,6 +93,8 @@
             if (!mediaWrap) return;
 
             card.classList.remove('tvpg-loop-active');
+            var host = card.closest('.product-small, .product, li.product');
+            if (host) host.classList.remove('tvpg-loop-active');
             var video = mediaWrap.querySelector('video');
             var iframe = mediaWrap.querySelector('iframe');
 
@@ -132,6 +136,13 @@
             hoverTarget.addEventListener('mouseleave', function () {
                 pauseMedia(card);
             });
+
+            hoverTarget.addEventListener('touchstart', function () {
+                playMedia(card);
+                setTimeout(function () {
+                    pauseMedia(card);
+                }, 1400);
+            }, { passive: true });
         });
 
         if (reducedMotion || !('IntersectionObserver' in window)) return;
@@ -141,9 +152,9 @@
             entries.forEach(function (entry) {
                 if (!entry.isIntersecting || entry.intersectionRatio < 0.6 || seen.has(entry.target)) return;
                 seen.add(entry.target);
-                entry.target.classList.add('tvpg-loop-active');
+                playMedia(entry.target);
                 setTimeout(function () {
-                    entry.target.classList.remove('tvpg-loop-active');
+                    pauseMedia(entry.target);
                 }, 1200);
             });
         }, { threshold: [0.6] });

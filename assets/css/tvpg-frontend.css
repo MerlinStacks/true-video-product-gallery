@@ -516,6 +516,19 @@
     opacity: 0;
 }
 
+.product-small:hover .tvpg-loop-media .tvpg-loop-secondary-media,
+.product.tvpg-loop-active .tvpg-loop-media .tvpg-loop-secondary-media,
+.product-small.tvpg-loop-active .tvpg-loop-media .tvpg-loop-secondary-media {
+    opacity: 1;
+    visibility: visible;
+}
+
+.product-small:hover .tvpg-loop-media .tvpg-loop-primary-media,
+.product.tvpg-loop-active .tvpg-loop-media .tvpg-loop-primary-media,
+.product-small.tvpg-loop-active .tvpg-loop-media .tvpg-loop-primary-media {
+    opacity: 0;
+}
+
 .tvpg-loop-secondary-media img,
 .tvpg-loop-secondary-media video,
 .tvpg-loop-secondary-media iframe {
