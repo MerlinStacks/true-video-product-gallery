@@ -87,7 +87,9 @@ class TVPG_Loader {
         add_filter( 'wp_resource_hints', array( self::$frontend, 'add_resource_hints' ), 10, 2 );
         add_filter( 'post_thumbnail_html', array( self::$frontend, 'filter_loop_product_thumbnail' ), 20, 5 );
         add_filter( 'woocommerce_product_get_image', array( self::$frontend, 'filter_loop_wc_product_image' ), 20, 6 );
-        add_action( 'woocommerce_after_shop_loop_item_title', array( self::$frontend, 'render_loop_media_payload' ), 1 );
+        if ( method_exists( self::$frontend, 'render_loop_media_payload' ) ) {
+            add_action( 'woocommerce_after_shop_loop_item_title', array( self::$frontend, 'render_loop_media_payload' ), 1 );
+        }
     }
 
     /**

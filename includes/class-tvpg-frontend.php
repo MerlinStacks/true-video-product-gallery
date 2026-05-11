@@ -229,6 +229,50 @@ class TVPG_Frontend {
 	}
 
 	/**
+	 * Render hidden payload for loop media swap fallback.
+	 *
+	 * Some themes bypass thumbnail filters. This payload allows frontend JS
+	 * to inject secondary media into the visible image area.
+	 *
+	 * @return void
+	 */
+	public function render_loop_media_payload() {
+		if ( ! ( is_shop() || is_product_taxonomy() || is_product_category() || is_product_tag() ) ) {
+			return;
+		}
+
+		global $product;
+		if ( ! $product || ! is_a( $product, 'WC_Product' ) ) {
+			return;
+		}
+
+		$secondary_markup = '';
+		$video_url        = get_post_meta( $product->get_id(), '_tvpg_video_url', true );
+
+		if ( $video_url ) {
+			$secondary_markup = $this->get_loop_video_markup( $video_url, $product );
+		}
+
+		if ( '' === $secondary_markup ) {
+			$gallery_ids = $product->get_gallery_image_ids();
+			$first_id    = ! empty( $gallery_ids ) ? absint( $gallery_ids[0] ) : 0;
+			if ( $first_id > 0 ) {
+				$secondary_markup = wp_get_attachment_image( $first_id, 'woocommerce_thumbnail', false, array(
+					'class'    => 'tvpg-loop-secondary-image',
+					'loading'  => 'lazy',
+					'decoding' => 'async',
+				) );
+			}
+		}
+
+		if ( '' === $secondary_markup ) {
+			return;
+		}
+
+		echo '<template class="tvpg-loop-secondary-template">' . wp_kses( $secondary_markup, TVPG_Video_Embed::get_allowed_html() ) . '</template>';
+	}
+
+	/**
 	 * Build lightweight loop video markup suitable for hover/touch previews.
 	 *
 	 * @param string     $video_url Video URL from product meta.
