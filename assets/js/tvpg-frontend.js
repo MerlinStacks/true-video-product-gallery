@@ -62,6 +62,13 @@
         var cards = document.querySelectorAll('.tvpg-loop-media');
         if (!cards.length) return;
 
+        cards.forEach(function (card) {
+            var productCard = card.closest('.product, .product-small');
+            if (productCard) {
+                productCard.classList.add('tvpg-has-loop-media');
+            }
+        });
+
         var reducedMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
         var supportsDesktopHover = window.matchMedia && window.matchMedia('(hover: hover) and (pointer: fine)').matches;
 

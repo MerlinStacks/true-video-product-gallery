@@ -550,6 +550,14 @@
     height: 100%;
 }
 
+/* Flatsome hover back-image conflicts with TVPG swap layers. */
+.product.tvpg-has-loop-media .image-fade_in_back > img.back-image,
+.product-small.tvpg-has-loop-media .image-fade_in_back > img.back-image,
+.product.tvpg-has-loop-media .image-fade_in_back > a > img.back-image,
+.product-small.tvpg-has-loop-media .image-fade_in_back > a > img.back-image {
+    display: none !important;
+}
+
 /* ==========================================================================
    Reduced Motion — respect user preference
    ========================================================================== */
