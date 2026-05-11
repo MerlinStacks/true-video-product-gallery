@@ -27,36 +27,6 @@
             return;
         }
 
-        document.querySelectorAll('.product, .product-small').forEach(function (productCard) {
-            var existing = productCard.querySelector('.tvpg-loop-media');
-            if (existing) return;
-
-            var template = productCard.querySelector('.tvpg-loop-secondary-template');
-            if (!template || !template.innerHTML.trim()) return;
-
-            var imageTarget = productCard.querySelector('.box-image .image-fade_in_back, .box-image a, .woocommerce-LoopProduct-link, a.woocommerce-LoopProduct-link');
-            if (!imageTarget) return;
-
-            var primaryWrap = document.createElement('div');
-            primaryWrap.className = 'tvpg-loop-primary-media';
-            while (imageTarget.firstChild) {
-                primaryWrap.appendChild(imageTarget.firstChild);
-            }
-
-            var secondaryWrap = document.createElement('div');
-            secondaryWrap.className = 'tvpg-loop-secondary-media';
-            secondaryWrap.setAttribute('aria-hidden', 'true');
-            secondaryWrap.innerHTML = template.innerHTML;
-
-            var container = document.createElement('div');
-            container.className = 'tvpg-loop-media';
-            container.setAttribute('data-tvpg-loop-media', '1');
-            container.appendChild(primaryWrap);
-            container.appendChild(secondaryWrap);
-
-            imageTarget.appendChild(container);
-        });
-
         var cards = document.querySelectorAll('.tvpg-loop-media');
         if (!cards.length) return;
 
@@ -125,17 +95,8 @@
 
         cards.forEach(function (card) {
             var mediaWrap = card.querySelector('.tvpg-loop-secondary-media');
-            if (!mediaWrap) return;
-
-            var primaryMedia = null;
-            Array.prototype.slice.call(card.children).forEach(function (child) {
-                if (!primaryMedia && !child.classList.contains('tvpg-loop-secondary-media')) {
-                    primaryMedia = child;
-                }
-            });
-            if (primaryMedia) {
-                primaryMedia.classList.add('tvpg-loop-primary-media');
-            }
+            var primaryMedia = card.querySelector('.tvpg-loop-primary-media');
+            if (!mediaWrap || !primaryMedia) return;
 
             var hoverTarget = card.closest('.product-small, .product, li.product') || card;
 

@@ -5,7 +5,7 @@ Tags: woocommerce, video, product gallery, youtube, vimeo, tiktok, instagram
 Requires at least: 6.4
 Tested up to: 6.8
 Requires PHP: 8.0
-Stable tag: 1.7.0
+Stable tag: 1.7.1
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -70,6 +70,9 @@ Yes, this plugin requires WooCommerce to be installed and active.
 4. Global settings page with preload options
 
 == Changelog ==
+
+= 1.7.1 =
+* FIX: Prevent archive/category product image disappearing when theme returns empty primary image HTML
 
 = 1.7.0 =
 * NEW: Gallery auto-scroll with configurable image delay and video-finish-aware progression

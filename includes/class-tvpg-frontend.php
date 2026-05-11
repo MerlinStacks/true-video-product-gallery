@@ -182,6 +182,15 @@ class TVPG_Frontend {
 			return $html;
 		}
 
+		$primary_html = $html;
+		if ( '' === trim( $primary_html ) && is_string( $image ) && '' !== trim( $image ) ) {
+			$primary_html = $image;
+		}
+
+		if ( '' === trim( $primary_html ) ) {
+			return $html;
+		}
+
 		$secondary_markup = '';
 		$video_url        = get_post_meta( $product->get_id(), '_tvpg_video_url', true );
 
@@ -205,7 +214,7 @@ class TVPG_Frontend {
 			return $html;
 		}
 
-		return $this->wrap_loop_media_html( $html, $secondary_markup );
+		return $this->wrap_loop_media_html( $primary_html, $secondary_markup );
 	}
 
 	/**
@@ -217,50 +226,6 @@ class TVPG_Frontend {
 	 */
 	private function wrap_loop_media_html( $primary_html, $secondary_html ) {
 		return '<div class="tvpg-loop-media" data-tvpg-loop-media="1"><div class="tvpg-loop-primary-media">' . $primary_html . '</div><div class="tvpg-loop-secondary-media" aria-hidden="true">' . $secondary_html . '</div></div>';
-	}
-
-	/**
-	 * Render hidden payload for loop media swap fallback.
-	 *
-	 * Some themes (including Flatsome) bypass thumbnail filters. This payload
-	 * lets frontend JS inject the secondary media into the visible image area.
-	 *
-	 * @return void
-	 */
-	public function render_loop_media_payload() {
-		if ( ! ( is_shop() || is_product_taxonomy() || is_product_category() || is_product_tag() ) ) {
-			return;
-		}
-
-		global $product;
-		if ( ! $product || ! is_a( $product, 'WC_Product' ) ) {
-			return;
-		}
-
-		$secondary_markup = '';
-		$video_url        = get_post_meta( $product->get_id(), '_tvpg_video_url', true );
-
-		if ( $video_url ) {
-			$secondary_markup = $this->get_loop_video_markup( $video_url, $product );
-		}
-
-		if ( '' === $secondary_markup ) {
-			$gallery_ids = $product->get_gallery_image_ids();
-			$first_id    = ! empty( $gallery_ids ) ? absint( $gallery_ids[0] ) : 0;
-			if ( $first_id > 0 ) {
-				$secondary_markup = wp_get_attachment_image( $first_id, 'woocommerce_thumbnail', false, array(
-					'class'    => 'tvpg-loop-secondary-image',
-					'loading'  => 'lazy',
-					'decoding' => 'async',
-				) );
-			}
-		}
-
-		if ( '' === $secondary_markup ) {
-			return;
-		}
-
-		echo '<template class="tvpg-loop-secondary-template">' . wp_kses( $secondary_markup, TVPG_Video_Embed::get_allowed_html() ) . '</template>';
 	}
 
 	/**
