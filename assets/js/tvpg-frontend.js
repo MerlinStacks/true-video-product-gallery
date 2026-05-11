@@ -62,10 +62,30 @@
         var cards = document.querySelectorAll('.tvpg-loop-media');
         if (!cards.length) return;
 
-        document.querySelectorAll('.products.equalize-box').forEach(function (grid) {
-            if (!grid.querySelector('.tvpg-has-loop-media')) return;
+        function disableThemeEqualize(grid) {
+            if (!grid || !grid.querySelector('.tvpg-has-loop-media')) return;
             grid.classList.remove('equalize-box');
             grid.classList.remove('has-equal-box-heights');
+
+            grid.querySelectorAll('.col-inner, .product-small.box').forEach(function (el) {
+                el.style.setProperty('height', 'auto', 'important');
+                el.style.setProperty('min-height', '0', 'important');
+            });
+        }
+
+        document.querySelectorAll('.products').forEach(function (grid) {
+            disableThemeEqualize(grid);
+
+            if (!('MutationObserver' in window)) return;
+            var eqObserver = new MutationObserver(function () {
+                disableThemeEqualize(grid);
+            });
+            eqObserver.observe(grid, {
+                attributes: true,
+                attributeFilter: ['class', 'style'],
+                subtree: true,
+                childList: true
+            });
         });
 
         cards.forEach(function (card) {
@@ -214,6 +234,8 @@
                     // Keep current state; viewport observer controls pause/reset.
                 }, { passive: true });
             }
+
+            pauseMedia(card);
         });
 
         if (reducedMotion || supportsDesktopHover || !('IntersectionObserver' in window)) return;
