@@ -67,6 +67,31 @@
             if (productCard) {
                 productCard.classList.add('tvpg-has-loop-media');
             }
+
+            var primaryMedia = card.querySelector('.tvpg-loop-primary-media');
+            var secondaryMedia = card.querySelector('.tvpg-loop-secondary-media');
+            if (primaryMedia) {
+                primaryMedia.style.setProperty('opacity', '1', 'important');
+                primaryMedia.style.setProperty('visibility', 'visible', 'important');
+                primaryMedia.style.setProperty('position', 'relative', 'important');
+                primaryMedia.style.setProperty('z-index', '2', 'important');
+            }
+            if (secondaryMedia) {
+                secondaryMedia.style.setProperty('opacity', '0', 'important');
+                secondaryMedia.style.setProperty('visibility', 'hidden', 'important');
+                secondaryMedia.style.setProperty('position', 'absolute', 'important');
+                secondaryMedia.style.setProperty('inset', '0', 'important');
+                secondaryMedia.style.setProperty('z-index', '3', 'important');
+            }
+
+            var imageWrap = card.parentElement;
+            if (imageWrap) {
+                imageWrap.querySelectorAll('img.back-image').forEach(function (img) {
+                    img.style.setProperty('display', 'none', 'important');
+                    img.style.setProperty('opacity', '0', 'important');
+                    img.style.setProperty('visibility', 'hidden', 'important');
+                });
+            }
         });
 
         var reducedMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -81,11 +106,16 @@
 
         function playMedia(card) {
             var mediaWrap = card.querySelector('.tvpg-loop-secondary-media');
-            if (!mediaWrap) return;
+            var primaryMedia = card.querySelector('.tvpg-loop-primary-media');
+            if (!mediaWrap || !primaryMedia) return;
 
             card.classList.add('tvpg-loop-active');
             var host = card.closest('.product-small, .product, li.product');
             if (host) host.classList.add('tvpg-loop-active');
+            primaryMedia.style.setProperty('opacity', '0', 'important');
+            primaryMedia.style.setProperty('visibility', 'hidden', 'important');
+            mediaWrap.style.setProperty('opacity', '1', 'important');
+            mediaWrap.style.setProperty('visibility', 'visible', 'important');
             var video = mediaWrap.querySelector('video');
             var iframe = mediaWrap.querySelector('iframe');
 
@@ -109,11 +139,16 @@
 
         function pauseMedia(card) {
             var mediaWrap = card.querySelector('.tvpg-loop-secondary-media');
-            if (!mediaWrap) return;
+            var primaryMedia = card.querySelector('.tvpg-loop-primary-media');
+            if (!mediaWrap || !primaryMedia) return;
 
             card.classList.remove('tvpg-loop-active');
             var host = card.closest('.product-small, .product, li.product');
             if (host) host.classList.remove('tvpg-loop-active');
+            primaryMedia.style.setProperty('opacity', '1', 'important');
+            primaryMedia.style.setProperty('visibility', 'visible', 'important');
+            mediaWrap.style.setProperty('opacity', '0', 'important');
+            mediaWrap.style.setProperty('visibility', 'hidden', 'important');
             var video = mediaWrap.querySelector('video');
             var iframe = mediaWrap.querySelector('iframe');
 
