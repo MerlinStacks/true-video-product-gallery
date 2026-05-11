@@ -83,11 +83,23 @@
             var mediaWrap = card.querySelector('.tvpg-loop-secondary-media');
             if (!mediaWrap) return;
 
-            card.addEventListener('mouseenter', function () {
+            var primaryMedia = null;
+            Array.prototype.slice.call(card.children).forEach(function (child) {
+                if (!primaryMedia && !child.classList.contains('tvpg-loop-secondary-media')) {
+                    primaryMedia = child;
+                }
+            });
+            if (primaryMedia) {
+                primaryMedia.classList.add('tvpg-loop-primary-media');
+            }
+
+            var hoverTarget = card.closest('.product-small, .product, li.product') || card;
+
+            hoverTarget.addEventListener('mouseenter', function () {
                 playMedia(card);
             });
 
-            card.addEventListener('mouseleave', function () {
+            hoverTarget.addEventListener('mouseleave', function () {
                 pauseMedia(card);
             });
         });

@@ -485,6 +485,13 @@
     position: relative;
 }
 
+.tvpg-loop-primary-media {
+    position: relative;
+    z-index: 1;
+    opacity: 1;
+    transition: opacity 0.35s ease;
+}
+
 .tvpg-loop-secondary-media {
     position: absolute;
     inset: 0;
@@ -500,6 +507,10 @@
 .tvpg-loop-media.tvpg-loop-active .tvpg-loop-secondary-media {
     opacity: 1;
     visibility: visible;
+}
+
+.tvpg-loop-media.tvpg-loop-active .tvpg-loop-primary-media {
+    opacity: 0;
 }
 
 .tvpg-loop-secondary-media img,
