@@ -141,26 +141,25 @@
             if (!supportsDesktopHover) {
                 hoverTarget.addEventListener('touchstart', function () {
                     playMedia(card);
-                    setTimeout(function () {
-                        pauseMedia(card);
-                    }, 1400);
+                }, { passive: true });
+
+                hoverTarget.addEventListener('touchend', function () {
+                    // Keep current state; viewport observer controls pause/reset.
                 }, { passive: true });
             }
         });
 
         if (reducedMotion || supportsDesktopHover || !('IntersectionObserver' in window)) return;
 
-        var seen = new WeakSet();
         var observer = new IntersectionObserver(function (entries) {
             entries.forEach(function (entry) {
-                if (!entry.isIntersecting || entry.intersectionRatio < 0.6 || seen.has(entry.target)) return;
-                seen.add(entry.target);
-                playMedia(entry.target);
-                setTimeout(function () {
+                if (entry.isIntersecting && entry.intersectionRatio >= 0.6) {
+                    playMedia(entry.target);
+                } else {
                     pauseMedia(entry.target);
-                }, 1200);
+                }
             });
-        }, { threshold: [0.6] });
+        }, { threshold: [0, 0.6] });
 
         cards.forEach(function (card) {
             observer.observe(card);
