@@ -327,7 +327,7 @@
 /* ==========================================================================
    Swiper Graceful Degradation (when Swiper JS fails to load)
    ========================================================================== */
-.tvpg-gallery-wrapper:not(.tvpg-swiper-initialised) .tvpg-main-slider {
+.tvpg-gallery-wrapper:not(.tvpg-swiper-initialised):not(.tvpg-single-slide) .tvpg-main-slider {
     display: flex;
     overflow-x: auto;
     scroll-snap-type: x mandatory;
@@ -335,23 +335,23 @@
     scrollbar-width: none; /* Firefox */
 }
 
-.tvpg-gallery-wrapper:not(.tvpg-swiper-initialised) .tvpg-main-slider::-webkit-scrollbar {
+.tvpg-gallery-wrapper:not(.tvpg-swiper-initialised):not(.tvpg-single-slide) .tvpg-main-slider::-webkit-scrollbar {
     display: none; /* Chrome / Safari */
 }
 
-.tvpg-gallery-wrapper:not(.tvpg-swiper-initialised) .tvpg-main-slider .swiper-slide {
+.tvpg-gallery-wrapper:not(.tvpg-swiper-initialised):not(.tvpg-single-slide) .tvpg-main-slider .swiper-slide {
     flex: 0 0 100%;
     scroll-snap-align: start;
 }
 
-.tvpg-gallery-wrapper:not(.tvpg-swiper-initialised) .tvpg-thumb-slider {
+.tvpg-gallery-wrapper:not(.tvpg-swiper-initialised):not(.tvpg-single-slide) .tvpg-thumb-slider {
     display: flex;
     overflow-x: auto;
     gap: 10px;
     padding: 5px 0;
 }
 
-.tvpg-gallery-wrapper:not(.tvpg-swiper-initialised) .tvpg-thumb-slider .swiper-slide {
+.tvpg-gallery-wrapper:not(.tvpg-swiper-initialised):not(.tvpg-single-slide) .tvpg-thumb-slider .swiper-slide {
     flex: 0 0 80px;
     height: 80px;
     opacity: 1;
