@@ -8,7 +8,7 @@
 define( 'ABSPATH', dirname( dirname( __FILE__ ) ) . '/tests/mocks/wordpress/' );
 define( 'TVPG_PATH', dirname( dirname( __FILE__ ) ) . '/' );
 define( 'TVPG_URL', 'https://example.com/wp-content/plugins/true-video-product-gallery/' );
-define( 'TVPG_VERSION', '1.7.10' );
+define( 'TVPG_VERSION', '1.7.11' );
 
 // Load WordPress stub functions.
 require dirname( __DIR__ ) . '/tests/mocks/wordpress/functions.php';

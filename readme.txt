@@ -5,7 +5,7 @@ Tags: woocommerce, video, product gallery, youtube, vimeo, tiktok, instagram
 Requires at least: 6.4
 Tested up to: 6.8
 Requires PHP: 8.0
-Stable tag: 1.7.10
+Stable tag: 1.7.11
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -70,6 +70,9 @@ Yes, this plugin requires WooCommerce to be installed and active.
 4. Global settings page with preload options
 
 == Changelog ==
+
+= 1.7.11 =
+* FIX: Smoothed mobile archive reverse transition by delaying secondary-layer hide until fade-out completes, removing the abrupt 2 -> 1 snap
 
 = 1.7.10 =
 * FIX: Flatsome mobile scroll no longer forces image-only archive cards into a stuck secondary state from touch events
