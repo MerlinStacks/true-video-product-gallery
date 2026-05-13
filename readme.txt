@@ -5,7 +5,7 @@ Tags: woocommerce, video, product gallery, youtube, vimeo, tiktok, instagram
 Requires at least: 6.4
 Tested up to: 6.8
 Requires PHP: 8.0
-Stable tag: 1.7.7
+Stable tag: 1.7.8
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -70,6 +70,9 @@ Yes, this plugin requires WooCommerce to be installed and active.
 4. Global settings page with preload options
 
 == Changelog ==
+
+= 1.7.8 =
+* FIX: Added mobile-safe image auto-scroll fallback that keeps cycling even when touch/scroll interactions interrupt slide change callbacks
 
 = 1.7.7 =
 * FIX: Auto-scroll image progression now uses explicit slide indices to avoid mobile flicker and ensure slide 1 -> 2 transitions run reliably

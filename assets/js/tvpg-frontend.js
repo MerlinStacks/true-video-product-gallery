@@ -493,6 +493,13 @@
             }
 
             mainSlider.slideTo(nextIndex);
+
+            // Mobile fallback: keep image-only auto-scroll alive even if a
+            // slideChange callback is missed during page scroll/touch gestures.
+            var nextSlide = mainSlider.slides[nextIndex];
+            if (nextSlide && !nextSlide.classList.contains('tvpg-video-slide')) {
+                nextSlideAfterDelay(settings.image_delay * 1000);
+            }
         }, delayMs);
     }
 
