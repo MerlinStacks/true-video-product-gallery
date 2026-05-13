@@ -292,7 +292,7 @@
                 pauseMedia(card);
             });
 
-            if (!supportsDesktopHover) {
+            if (!supportsDesktopHover && hasSecondaryVideoMedia(card)) {
                 hoverTarget.addEventListener('touchstart', function () {
                     playMedia(card);
                 }, { passive: true });
