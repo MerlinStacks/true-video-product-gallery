@@ -147,6 +147,10 @@
         var archiveCycleTimers = new WeakMap();
         var archiveCycleState = new WeakMap();
         var archiveFadeOutTimers = new WeakMap();
+        var archiveEnterTimers = new WeakMap();
+        var visibleImageCards = new Set();
+        var maxConcurrentImageCycles = 3;
+        var archiveEnterDelay = 220;
         var archiveImageDelay = 4000;
         if (typeof tvpgParams !== 'undefined' && tvpgParams.settings && tvpgParams.settings.image_delay) {
             var parsedDelay = parseInt(tvpgParams.settings.image_delay, 10);
@@ -267,8 +271,8 @@
         function startArchiveImageCycle(card) {
             if (archiveCycleTimers.get(card)) return;
 
-            archiveCycleState.set(card, true);
-            playMedia(card);
+            archiveCycleState.set(card, false);
+            pauseMedia(card);
 
             function tick() {
                 if (!document.body.contains(card)) {
@@ -289,6 +293,46 @@
             }
 
             archiveCycleTimers.set(card, setTimeout(tick, archiveImageDelay));
+        }
+
+        function rebalanceArchiveImageCycles() {
+            var running = 0;
+            visibleImageCards.forEach(function (card) {
+                if (archiveCycleTimers.get(card)) {
+                    running++;
+                }
+            });
+
+            if (running > maxConcurrentImageCycles) {
+                var toStop = running - maxConcurrentImageCycles;
+                visibleImageCards.forEach(function (card) {
+                    if (toStop <= 0) return;
+                    if (archiveCycleTimers.get(card)) {
+                        stopArchiveImageCycle(card);
+                        toStop--;
+                    }
+                });
+                return;
+            }
+
+            if (running < maxConcurrentImageCycles) {
+                var capacity = maxConcurrentImageCycles - running;
+                visibleImageCards.forEach(function (card) {
+                    if (capacity <= 0) return;
+                    if (!archiveCycleTimers.get(card)) {
+                        startArchiveImageCycle(card);
+                        capacity--;
+                    }
+                });
+            }
+        }
+
+        function clearArchiveEnterTimer(card) {
+            var timer = archiveEnterTimers.get(card);
+            if (timer) {
+                clearTimeout(timer);
+                archiveEnterTimers.delete(card);
+            }
         }
 
         cards.forEach(function (card) {
@@ -327,15 +371,27 @@
             entries.forEach(function (entry) {
                 if (entry.isIntersecting && entry.intersectionRatio >= 0.6) {
                     if (hasSecondaryVideoMedia(entry.target)) {
-                        playMedia(entry.target);
+                        clearArchiveEnterTimer(entry.target);
+                        archiveEnterTimers.set(entry.target, setTimeout(function () {
+                            playMedia(entry.target);
+                            archiveEnterTimers.delete(entry.target);
+                        }, archiveEnterDelay));
                     } else {
-                        startArchiveImageCycle(entry.target);
+                        visibleImageCards.add(entry.target);
+                        clearArchiveEnterTimer(entry.target);
+                        archiveEnterTimers.set(entry.target, setTimeout(function () {
+                            rebalanceArchiveImageCycles();
+                            archiveEnterTimers.delete(entry.target);
+                        }, archiveEnterDelay));
                     }
                 } else {
+                    clearArchiveEnterTimer(entry.target);
                     if (hasSecondaryVideoMedia(entry.target)) {
                         pauseMedia(entry.target);
                     } else {
+                        visibleImageCards.delete(entry.target);
                         stopArchiveImageCycle(entry.target);
+                        rebalanceArchiveImageCycles();
                     }
                 }
             });
