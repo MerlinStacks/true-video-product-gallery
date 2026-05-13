@@ -144,6 +144,15 @@
 
         var reducedMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
         var supportsDesktopHover = window.matchMedia && window.matchMedia('(hover: hover) and (pointer: fine)').matches;
+        var archiveCycleTimers = new WeakMap();
+        var archiveCycleState = new WeakMap();
+        var archiveImageDelay = 4000;
+        if (typeof tvpgParams !== 'undefined' && tvpgParams.settings && tvpgParams.settings.image_delay) {
+            var parsedDelay = parseInt(tvpgParams.settings.image_delay, 10);
+            if (!isNaN(parsedDelay) && parsedDelay >= 1 && parsedDelay <= 30) {
+                archiveImageDelay = parsedDelay * 1000;
+            }
+        }
 
         function getProviderFromIframe(iframe) {
             var src = iframe.getAttribute('src') || '';
@@ -223,6 +232,49 @@
             }
         }
 
+        function hasSecondaryVideoMedia(card) {
+            var mediaWrap = card.querySelector('.tvpg-loop-secondary-media');
+            if (!mediaWrap) return false;
+            return !!mediaWrap.querySelector('video, iframe');
+        }
+
+        function stopArchiveImageCycle(card) {
+            var timer = archiveCycleTimers.get(card);
+            if (timer) {
+                clearTimeout(timer);
+                archiveCycleTimers.delete(card);
+            }
+            archiveCycleState.delete(card);
+            pauseMedia(card);
+        }
+
+        function startArchiveImageCycle(card) {
+            if (archiveCycleTimers.get(card)) return;
+
+            archiveCycleState.set(card, true);
+            playMedia(card);
+
+            function tick() {
+                if (!document.body.contains(card)) {
+                    stopArchiveImageCycle(card);
+                    return;
+                }
+
+                var showSecondary = archiveCycleState.get(card);
+                if (showSecondary) {
+                    pauseMedia(card);
+                    archiveCycleState.set(card, false);
+                } else {
+                    playMedia(card);
+                    archiveCycleState.set(card, true);
+                }
+
+                archiveCycleTimers.set(card, setTimeout(tick, archiveImageDelay));
+            }
+
+            archiveCycleTimers.set(card, setTimeout(tick, archiveImageDelay));
+        }
+
         cards.forEach(function (card) {
             var mediaWrap = card.querySelector('.tvpg-loop-secondary-media');
             var primaryMedia = card.querySelector('.tvpg-loop-primary-media');
@@ -258,9 +310,17 @@
         var observer = new IntersectionObserver(function (entries) {
             entries.forEach(function (entry) {
                 if (entry.isIntersecting && entry.intersectionRatio >= 0.6) {
-                    playMedia(entry.target);
+                    if (hasSecondaryVideoMedia(entry.target)) {
+                        playMedia(entry.target);
+                    } else {
+                        startArchiveImageCycle(entry.target);
+                    }
                 } else {
-                    pauseMedia(entry.target);
+                    if (hasSecondaryVideoMedia(entry.target)) {
+                        pauseMedia(entry.target);
+                    } else {
+                        stopArchiveImageCycle(entry.target);
+                    }
                 }
             });
         }, { threshold: [0, 0.6] });
