@@ -12,13 +12,17 @@
     'use strict';
 
     var registerPlugin = wp.plugins.registerPlugin;
-    var PluginDocumentSettingPanel = (wp.editor && wp.editor.PluginDocumentSettingPanel) || wp.editPost.PluginDocumentSettingPanel;
+    var PluginDocumentSettingPanel = (wp.editor && wp.editor.PluginDocumentSettingPanel) || (wp.editPost && wp.editPost.PluginDocumentSettingPanel);
     var el = wp.element.createElement;
     var useState = wp.element.useState;
     var useEntityProp = wp.coreData.useEntityProp;
     var TextControl = wp.components.TextControl;
     var Button = wp.components.Button;
     var __ = wp.i18n.__;
+
+    if (!PluginDocumentSettingPanel) {
+        return;
+    }
 
     /**
      * Why: wp.media integration requires a callback approach because

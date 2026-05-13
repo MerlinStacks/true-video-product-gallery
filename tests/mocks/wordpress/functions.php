@@ -111,6 +111,31 @@ function rest_ensure_response( $data, $status = 200 ) {
 	return $data;
 }
 
+function has_action( $hook_name, $callback = false ) {
+	global $_test_actions;
+	if ( ! isset( $_test_actions[ $hook_name ] ) ) {
+		return false;
+	}
+	if ( false === $callback ) {
+		return true;
+	}
+	foreach ( $_test_actions[ $hook_name ] as $registered_callback ) {
+		if ( $registered_callback === $callback ) {
+			return true;
+		}
+	}
+	return false;
+}
+
+function add_action( $hook_name, $callback, $priority = 10, $accepted_args = 1 ) {
+	global $_test_actions;
+	if ( ! isset( $_test_actions[ $hook_name ] ) ) {
+		$_test_actions[ $hook_name ] = array();
+	}
+	$_test_actions[ $hook_name ][] = $callback;
+	return true;
+}
+
 class WP_Error {
 	public $errors = array();
 	public $error_data = array();

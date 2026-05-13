@@ -484,11 +484,15 @@
         clearAutoScrollTimer();
         autoScrollTimer = setTimeout(function () {
             if (!mainSlider || !settings.gallery_autoscroll) return;
-            if (mainSlider.isEnd) {
-                mainSlider.slideTo(0);
-                return;
+            var slideCount = mainSlider.slides ? mainSlider.slides.length : 0;
+            if (slideCount < 2) return;
+
+            var nextIndex = mainSlider.activeIndex + 1;
+            if (nextIndex >= slideCount) {
+                nextIndex = 0;
             }
-            mainSlider.slideNext();
+
+            mainSlider.slideTo(nextIndex);
         }, delayMs);
     }
 

@@ -165,6 +165,10 @@ class TVPG_Schema {
 			return $video_url;
 		}
 
+		if ( 'tiktok' === $video_info['type'] || 'instagram' === $video_info['type'] ) {
+			return $video_url;
+		}
+
 		return '';
 	}
 }

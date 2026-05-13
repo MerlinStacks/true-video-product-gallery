@@ -15,7 +15,7 @@ class TVPG_Video_Parser_Test extends TestCase {
 	/**
 	 * Data provider for valid YouTube URLs.
 	 */
-	public function youtube_url_provider(): array {
+	public static function youtube_url_provider(): array {
 		return array(
 			'watch?v='         => array( 'https://www.youtube.com/watch?v=dQw4w9WgXcQ', 'dQw4w9WgXcQ' ),
 			'short youtu.be'   => array( 'https://youtu.be/dQw4w9WgXcQ', 'dQw4w9WgXcQ' ),
@@ -37,7 +37,7 @@ class TVPG_Video_Parser_Test extends TestCase {
 	/**
 	 * Data provider for valid Vimeo URLs.
 	 */
-	public function vimeo_url_provider(): array {
+	public static function vimeo_url_provider(): array {
 		return array(
 			'standard' => array( 'https://vimeo.com/123456789', '123456789' ),
 			'channels' => array( 'https://vimeo.com/channels/staffpicks/123456789', '123456789' ),

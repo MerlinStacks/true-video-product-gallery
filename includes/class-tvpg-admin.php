@@ -230,6 +230,13 @@ class TVPG_Admin {
         $url  = $request->get_param( 'url' );
         $info = TVPG_Video_Parser::get_video_info( $url );
 
+        if ( ! $info ) {
+            return rest_ensure_response( array(
+                'success' => false,
+                'message' => __( 'Invalid or unsupported video URL.', 'true-video-product-gallery' ),
+            ) );
+        }
+
         $embed_url = '';
         $thumb_url = '';
 

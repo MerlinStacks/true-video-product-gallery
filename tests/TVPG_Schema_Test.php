@@ -12,6 +12,18 @@ use PHPUnit\Framework\TestCase;
  */
 class TVPG_Schema_Test extends TestCase {
 
+	protected function setUp(): void {
+		parent::setUp();
+
+		$ref = new ReflectionClass( TVPG_Schema::class );
+		$prop = $ref->getProperty( 'pending' );
+		$prop->setAccessible( true );
+		$prop->setValue( array() );
+
+		global $_test_actions;
+		$_test_actions = array();
+	}
+
 	public function test_enqueue_collects_pending(): void {
 		$product = new WC_Product();
 		TVPG_Schema::enqueue( $product, 'https://www.youtube.com/watch?v=dQw4w9WgXcQ' );

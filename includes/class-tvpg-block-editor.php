@@ -124,7 +124,7 @@ class TVPG_Block_Editor {
 		wp_enqueue_script(
 			'tvpg-block-editor',
 			TVPG_URL . 'assets/js/tvpg-block-editor' . $suffix . '.js',
-			array( 'wp-plugins', 'wp-editor', 'wp-element', 'wp-components', 'wp-data', 'wp-core-data', 'wp-i18n' ),
+			array( 'wp-plugins', 'wp-editor', 'wp-edit-post', 'wp-element', 'wp-components', 'wp-data', 'wp-core-data', 'wp-i18n' ),
 			TVPG_VERSION,
 			true
 		);
