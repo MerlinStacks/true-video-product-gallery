@@ -484,6 +484,10 @@
         clearAutoScrollTimer();
         autoScrollTimer = setTimeout(function () {
             if (!mainSlider || !settings.gallery_autoscroll) return;
+            if (mainSlider.isEnd) {
+                mainSlider.slideTo(0);
+                return;
+            }
             mainSlider.slideNext();
         }, delayMs);
     }
