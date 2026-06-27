@@ -153,14 +153,21 @@
      */
     function ProductVideoPanel() {
         var entityPropArgs = ['postType', 'product'];
-        var videoUrl = useEntityProp(entityPropArgs[0], entityPropArgs[1], '_tvpg_video_url');
-        var thumbUrl = useEntityProp(entityPropArgs[0], entityPropArgs[1], '_tvpg_video_thumb_url');
+        var metaProp = useEntityProp(entityPropArgs[0], entityPropArgs[1], 'meta');
 
-        // Why: useEntityProp returns [value, setter, fullValue].
-        var videoValue = videoUrl[0] || '';
-        var setVideoValue = videoUrl[1];
-        var thumbValue = thumbUrl[0] || '';
-        var setThumbValue = thumbUrl[1];
+        // Registered post meta is exposed through the entity's `meta` prop.
+        var meta = metaProp[0] || {};
+        var setMeta = metaProp[1];
+        var videoValue = meta._tvpg_video_url || '';
+        var thumbValue = meta._tvpg_video_thumb_url || '';
+
+        function setVideoValue(value) {
+            setMeta(Object.assign({}, meta, { _tvpg_video_url: value }));
+        }
+
+        function setThumbValue(value) {
+            setMeta(Object.assign({}, meta, { _tvpg_video_thumb_url: value }));
+        }
 
         return el(PluginDocumentSettingPanel, {
             name: 'tvpg-product-video',

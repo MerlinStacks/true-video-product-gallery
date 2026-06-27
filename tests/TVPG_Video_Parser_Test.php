@@ -6,6 +6,7 @@
  */
 
 use PHPUnit\Framework\TestCase;
+use PHPUnit\Framework\Attributes\DataProvider;
 
 /**
  * Test suite for video URL parsing.
@@ -24,9 +25,7 @@ class TVPG_Video_Parser_Test extends TestCase {
 		);
 	}
 
-	/**
-	 * @dataProvider youtube_url_provider
-	 */
+	#[DataProvider( 'youtube_url_provider' )]
 	public function test_get_youtube_id_valid( string $url, string $expected_id ): void {
 		$info = TVPG_Video_Parser::get_video_info( $url );
 		$this->assertIsArray( $info );
@@ -44,9 +43,7 @@ class TVPG_Video_Parser_Test extends TestCase {
 		);
 	}
 
-	/**
-	 * @dataProvider vimeo_url_provider
-	 */
+	#[DataProvider( 'vimeo_url_provider' )]
 	public function test_get_vimeo_id_valid( string $url, string $expected_id ): void {
 		$info = TVPG_Video_Parser::get_video_info( $url );
 		$this->assertIsArray( $info );
@@ -60,6 +57,12 @@ class TVPG_Video_Parser_Test extends TestCase {
 
 	public function test_unsupported_url_returns_false(): void {
 		$this->assertFalse( TVPG_Video_Parser::get_video_info( 'https://example.com/video' ) );
+	}
+
+	public function test_provider_paths_on_other_domains_are_not_matched(): void {
+		$this->assertFalse( TVPG_Video_Parser::get_video_info( 'https://example.com/embed/dQw4w9WgXcQ' ) );
+		$this->assertFalse( TVPG_Video_Parser::get_video_info( 'https://example.com/watch?v=dQw4w9WgXcQ' ) );
+		$this->assertFalse( TVPG_Video_Parser::get_video_info( 'https://example.com/video/123456789' ) );
 	}
 
 	public function test_direct_mp4_file(): void {

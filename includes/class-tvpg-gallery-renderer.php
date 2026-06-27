@@ -33,9 +33,10 @@ class TVPG_Gallery_Renderer {
 	 * @return void
 	 */
 	public static function render() {
-		global $product;
+		global $product; // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedVariableFound
 
 		if ( ! $product || ! is_a( $product, 'WC_Product' ) ) {
+			// phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedVariableFound -- WooCommerce uses the global $product object.
 			$product = wc_get_product( get_the_ID() );
 		}
 
@@ -89,10 +90,10 @@ class TVPG_Gallery_Renderer {
 	/**
 	 * Assemble the ordered array of slides (images + video).
 	 *
-	 * @param int    $main_image_id  Main product image attachment ID.
-	 * @param array  $attachment_ids Gallery attachment IDs.
-	 * @param string $video_url      Video URL (may be empty).
-	 * @param string $position       Video position setting (first/second/last).
+	 * @param int        $main_image_id  Main product image attachment ID.
+	 * @param array      $attachment_ids Gallery attachment IDs.
+	 * @param string     $video_url      Video URL (may be empty).
+	 * @param string     $position       Video position setting (first/second/last).
 	 * @param WC_Product $product    The product object.
 	 * @return array Ordered slide data.
 	 */
@@ -100,11 +101,17 @@ class TVPG_Gallery_Renderer {
 		$slides = array();
 
 		if ( $main_image_id ) {
-			$slides[] = array( 'type' => 'image', 'id' => $main_image_id );
+			$slides[] = array(
+				'type' => 'image',
+				'id'   => $main_image_id,
+			);
 		}
 
 		foreach ( $attachment_ids as $attachment_id ) {
-			$slides[] = array( 'type' => 'image', 'id' => $attachment_id );
+			$slides[] = array(
+				'type' => 'image',
+				'id'   => $attachment_id,
+			);
 		}
 
 		// Guarantee at least one slide for Swiper initialisation.
@@ -129,13 +136,10 @@ class TVPG_Gallery_Renderer {
 				array_unshift( $slides, $video_slide );
 			} elseif ( 'last' === $position ) {
 				array_push( $slides, $video_slide );
+			} elseif ( count( $slides ) > 0 ) {
+				array_splice( $slides, 1, 0, array( $video_slide ) );
 			} else {
-				// Default: 'second'.
-				if ( count( $slides ) > 0 ) {
-					array_splice( $slides, 1, 0, array( $video_slide ) );
-				} else {
-					$slides[] = $video_slide;
-				}
+				$slides[] = $video_slide;
 			}
 		}
 
@@ -155,7 +159,8 @@ class TVPG_Gallery_Renderer {
 		?>
 			<div class="swiper tvpg-main-slider" role="group" aria-roledescription="<?php esc_attr_e( 'carousel', 'true-video-product-gallery' ); ?>">
 				<div class="swiper-wrapper">
-					<?php foreach ( $slides as $slide ) :
+					<?php
+					foreach ( $slides as $slide ) :
 						$is_placeholder = ( isset( $slide['is_placeholder'] ) && $slide['is_placeholder'] );
 						$slide_classes  = 'swiper-slide';
 						if ( 'video' === $slide['type'] ) {
@@ -164,24 +169,24 @@ class TVPG_Gallery_Renderer {
 						if ( $is_placeholder ) {
 							$slide_classes .= ' tvpg-placeholder-slide';
 						}
-					?>
+						?>
 						<div class="<?php echo esc_attr( $slide_classes ); ?>" role="group" aria-roledescription="<?php esc_attr_e( 'slide', 'true-video-product-gallery' ); ?>">
 							<div class="woocommerce-product-gallery__image">
 							<?php
 							if ( 'image' === $slide['type'] ) {
-								if ( ! empty( $slide['is_placeholder'] ) || $slide['id'] === 0 ) {
-									printf( '<img src="%s" alt="%s" />', esc_url( wc_placeholder_img_src( 'woocommerce_single' ) ), esc_attr__( 'Placeholder', 'woocommerce' ) );
+								if ( ! empty( $slide['is_placeholder'] ) || 0 === $slide['id'] ) {
+									printf( '<img src="%s" alt="%s" />', esc_url( wc_placeholder_img_src( 'woocommerce_single' ) ), esc_attr__( 'Placeholder', 'true-video-product-gallery' ) );
 								} else {
 									// PSI-06: First image is the likely LCP element — prioritise it.
 									$img_attrs = array(
 										'sizes' => '(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 600px',
 									);
 									if ( ! $first_image_hit ) {
-										$img_attrs = array(
+										$img_attrs       = array(
 											'fetchpriority' => 'high',
-											'loading'       => 'eager',
-											'decoding'      => 'sync',
-											'sizes'         => '(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 600px',
+											'loading'  => 'eager',
+											'decoding' => 'sync',
+											'sizes'    => '(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 600px',
 										);
 										$first_image_hit = true;
 									}
@@ -216,45 +221,55 @@ class TVPG_Gallery_Renderer {
 		?>
 			<div class="swiper tvpg-thumb-slider">
 				<div class="swiper-wrapper">
-					<?php foreach ( $slides as $slide_idx => $slide ) :
+					<?php
+					foreach ( $slides as $slide_idx => $slide ) :
 						$thumb_label = 'video' === $slide['type']
 							? sprintf( /* translators: %d: slide number */ esc_attr__( 'Video thumbnail, slide %d', 'true-video-product-gallery' ), $slide_idx + 1 )
 							: sprintf( /* translators: %d: slide number */ esc_attr__( 'Image thumbnail, slide %d', 'true-video-product-gallery' ), $slide_idx + 1 );
-					?>
+						?>
 						<div class="swiper-slide <?php echo 'video' === $slide['type'] ? 'tvpg-video-thumb-slide' : ''; ?>" tabindex="0" aria-label="<?php echo esc_attr( $thumb_label ); ?>" role="button">
-							<?php
-							if ( 'image' === $slide['type'] ) {
-								// PSI-06: First thumbnail is above the fold — skip lazy-load.
-								$thumb_attrs = array();
-								if ( ! $first_thumb_hit ) {
-									$thumb_attrs     = array( 'loading' => 'eager' );
-									$first_thumb_hit = true;
-								}
-								echo wp_get_attachment_image( $slide['id'], 'woocommerce_thumbnail', false, $thumb_attrs );
-							} elseif ( 'video' === $slide['type'] ) {
-								$video_info = TVPG_Video_Parser::get_video_info( $slide['url'] );
-								if ( $video_info && 'file' === $video_info['type'] ) {
-									// Self-hosted video: render an inline autoplay video
-									// so the thumbnail plays a live preview. Output directly
-									// to avoid wp_kses stripping boolean attributes.
-									$poster_attr = '';
-									if ( ! empty( $slide['thumb_url'] ) ) {
-										$poster_attr = ' poster="' . esc_url( $slide['thumb_url'] ) . '"';
-									} elseif ( ! empty( $slide['thumb_id'] ) ) {
-										$poster_src = wp_get_attachment_image_url( $slide['thumb_id'], 'woocommerce_thumbnail' );
-										if ( $poster_src ) {
-											$poster_attr = ' poster="' . esc_url( $poster_src ) . '"';
-										}
-									}
-									echo '<video class="tvpg-thumb-video" autoplay muted loop playsinline preload="auto"' . $poster_attr . ' src="' . esc_url( $video_info['url'] ) . '" style="width:100%;height:100%;object-fit:cover;" tabindex="-1" aria-hidden="true"></video>';
-									echo '<span class="tvpg-thumb-play-icon"><svg viewBox="0 0 24 24" width="20" height="20" fill="#fff" style="filter:drop-shadow(0 1px 2px rgba(0,0,0,.5))"><path d="M8 5v14l11-7z"/></svg></span>';
-								} elseif ( ! empty( $slide['thumb_url'] ) ) {
-									echo '<img src="' . esc_url( $slide['thumb_url'] ) . '" alt="' . esc_attr__( 'Video Thumbnail', 'true-video-product-gallery' ) . '" style="width:100%;height:100%;object-fit:cover;">';
-								} else {
-									echo wp_kses( TVPG_Video_Embed::get_video_thumb_html( $slide['url'] ), $allowed_html );
-								}
+						<?php
+						if ( 'image' === $slide['type'] ) {
+							if ( ! empty( $slide['is_placeholder'] ) || 0 === $slide['id'] ) {
+								printf( '<img src="%s" alt="%s" />', esc_url( wc_placeholder_img_src( 'woocommerce_thumbnail' ) ), esc_attr__( 'Placeholder', 'true-video-product-gallery' ) );
+								continue;
 							}
-							?>
+
+							// PSI-06: First thumbnail is above the fold — skip lazy-load.
+							$thumb_attrs = array();
+							if ( ! $first_thumb_hit ) {
+								$thumb_attrs     = array( 'loading' => 'eager' );
+								$first_thumb_hit = true;
+							}
+							echo wp_get_attachment_image( $slide['id'], 'woocommerce_thumbnail', false, $thumb_attrs );
+						} elseif ( 'video' === $slide['type'] ) {
+							$video_info = TVPG_Video_Parser::get_video_info( $slide['url'] );
+							if ( $video_info && 'file' === $video_info['type'] ) {
+								// Self-hosted video: render an inline autoplay video
+								// so the thumbnail plays a live preview. Output directly
+								// to avoid wp_kses stripping boolean attributes.
+								$poster_url = '';
+								if ( ! empty( $slide['thumb_url'] ) ) {
+									$poster_url = $slide['thumb_url'];
+								} elseif ( ! empty( $slide['thumb_id'] ) ) {
+									$poster_src = wp_get_attachment_image_url( $slide['thumb_id'], 'woocommerce_thumbnail' );
+									if ( $poster_src ) {
+										$poster_url = $poster_src;
+									}
+								}
+								echo '<video class="tvpg-thumb-video" autoplay muted loop playsinline preload="auto"';
+								if ( $poster_url ) {
+									echo ' poster="' . esc_url( $poster_url ) . '"';
+								}
+								echo ' src="' . esc_url( $video_info['url'] ) . '" style="width:100%;height:100%;object-fit:cover;" tabindex="-1" aria-hidden="true"></video>';
+								echo '<span class="tvpg-thumb-play-icon"><svg viewBox="0 0 24 24" width="20" height="20" fill="#fff" style="filter:drop-shadow(0 1px 2px rgba(0,0,0,.5))"><path d="M8 5v14l11-7z"/></svg></span>';
+							} elseif ( ! empty( $slide['thumb_url'] ) ) {
+								echo '<img src="' . esc_url( $slide['thumb_url'] ) . '" alt="' . esc_attr__( 'Video Thumbnail', 'true-video-product-gallery' ) . '" style="width:100%;height:100%;object-fit:cover;">';
+							} else {
+								echo wp_kses( TVPG_Video_Embed::get_video_thumb_html( $slide['url'] ), $allowed_html );
+							}
+						}
+						?>
 						</div>
 					<?php endforeach; ?>
 				</div>

@@ -5,7 +5,7 @@ Tags: woocommerce, video, product gallery, youtube, vimeo, tiktok, instagram
 Requires at least: 6.4
 Tested up to: 6.8
 Requires PHP: 8.0
-Stable tag: 1.7.13
+Stable tag: 1.7.14
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -70,6 +70,14 @@ Yes, this plugin requires WooCommerce to be installed and active.
 4. Global settings page with preload options
 
 == Changelog ==
+
+= 1.7.14 =
+* FIX: Restored reliable single-product gallery rendering on standard WooCommerce themes
+* FIX: Shortcode galleries now load required frontend assets outside product pages
+* FIX: Product block editor video meta now reads and saves through the registered REST meta fields
+* FIX: Multiple galleries and quick-view galleries are now scoped independently on the frontend
+* FIX: Hardened provider URL parsing to avoid matching YouTube/Vimeo-like paths on unrelated domains
+* IMPROVED: Updated build/test tooling, coding standards compliance, and dependency audit status
 
 = 1.7.13 =
 * IMPROVED: Softened mobile in-viewport archive transitions with a short entry delay and smoother image-cycle startup to reduce snappy swaps while scrolling

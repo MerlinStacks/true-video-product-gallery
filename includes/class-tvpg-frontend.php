@@ -26,6 +26,13 @@ if ( ! defined( 'ABSPATH' ) ) {
 class TVPG_Frontend {
 
 	/**
+	 * Whether frontend assets have already been enqueued in this request.
+	 *
+	 * @var bool
+	 */
+	private $assets_enqueued = false;
+
+	/**
 	 * Determine if archive/category media swap is enabled.
 	 *
 	 * Constant TVPG_DISABLE_ARCHIVE_SWAP always wins as emergency override.
@@ -53,21 +60,20 @@ class TVPG_Frontend {
 		$is_single_product = is_product();
 		$is_product_loop   = is_shop() || is_product_taxonomy() || is_product_category() || is_product_tag();
 		$archive_swap_on   = $this->is_archive_swap_enabled();
+		$has_shortcode     = $this->page_has_gallery_shortcode();
 
-		if ( ! $is_single_product && ! $is_product_loop ) {
+		if ( ! $is_single_product && ! $is_product_loop && ! $has_shortcode ) {
 			return;
 		}
 
-		$suffix   = ( defined( 'SCRIPT_DEBUG' ) && SCRIPT_DEBUG ) ? '' : '.min';
-		$settings = TVPG_Settings::get_all();
-
-		// IMP-05: Determine if Swiper is needed (>1 slide or has video).
-		global $product;
+		// Determine if Swiper is needed (>1 slide, variable product, or shortcode fallback).
+		global $product; // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedVariableFound
 		if ( $is_single_product && ( ! $product || ! is_a( $product, 'WC_Product' ) ) ) {
+			// phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedVariableFound -- WooCommerce uses the global $product object.
 			$product = wc_get_product( get_the_ID() );
 		}
 
-		$needs_slider = false;
+		$needs_slider = $has_shortcode;
 		if ( $is_single_product && $product ) {
 			$gallery_count = count( $product->get_gallery_image_ids() );
 			$has_main      = (bool) $product->get_image_id();
@@ -79,24 +85,76 @@ class TVPG_Frontend {
 			$needs_slider = ( $total_slides > 1 ) || $is_variable;
 		}
 
+		$this->enqueue_gallery_assets( $needs_slider, $is_product_loop && $archive_swap_on );
+	}
+
+	/**
+	 * Detect shortcode usage in the current queried post content.
+	 *
+	 * @return bool
+	 */
+	private function page_has_gallery_shortcode() {
+		global $post;
+
+		return $post instanceof WP_Post
+			&& has_shortcode( $post->post_content, 'tvpg_gallery' );
+	}
+
+	/**
+	 * Enqueue the frontend gallery assets.
+	 *
+	 * @param bool $needs_slider Whether Swiper is required.
+	 * @param bool $archive_swap Whether archive media swapping is active.
+	 * @return void
+	 */
+	private function enqueue_gallery_assets( $needs_slider, $archive_swap = false ) {
+		$suffix   = ( defined( 'SCRIPT_DEBUG' ) && SCRIPT_DEBUG ) ? '' : '.min';
+		$settings = TVPG_Settings::get_all();
+
 		if ( $needs_slider ) {
 			wp_enqueue_style( 'tvpg-swiper', TVPG_URL . 'assets/lib/swiper/swiper-slim.min.css', array(), TVPG_VERSION );
-			wp_enqueue_script( 'tvpg-swiper', TVPG_URL . 'assets/lib/swiper/swiper-slim.min.js', array(), TVPG_VERSION, array( 'strategy' => 'defer', 'in_footer' => true ) );
+			wp_enqueue_script(
+				'tvpg-swiper',
+				TVPG_URL . 'assets/lib/swiper/swiper-slim.min.js',
+				array(),
+				TVPG_VERSION,
+				array(
+					'strategy'  => 'defer',
+					'in_footer' => true,
+				)
+			);
 		}
 
-		// Core styles always load for layout stability.
 		$style_deps = $needs_slider ? array( 'tvpg-swiper' ) : array();
+		if ( $this->assets_enqueued && ! wp_style_is( 'tvpg-frontend', 'done' ) ) {
+			wp_dequeue_style( 'tvpg-frontend' );
+		}
 		wp_enqueue_style( 'tvpg-frontend', TVPG_URL . 'assets/css/tvpg-frontend' . $suffix . '.css', $style_deps, TVPG_VERSION );
 
-		// IMP-06: Frontend JS no longer depends on jQuery.
 		$script_deps = $needs_slider ? array( 'tvpg-swiper' ) : array();
-		wp_enqueue_script( 'tvpg-frontend', TVPG_URL . 'assets/js/tvpg-frontend' . $suffix . '.js', $script_deps, TVPG_VERSION, array( 'strategy' => 'defer', 'in_footer' => true ) );
+		if ( $this->assets_enqueued && ! wp_script_is( 'tvpg-frontend', 'done' ) ) {
+			wp_dequeue_script( 'tvpg-frontend' );
+		}
+		wp_enqueue_script(
+			'tvpg-frontend',
+			TVPG_URL . 'assets/js/tvpg-frontend' . $suffix . '.js',
+			$script_deps,
+			TVPG_VERSION,
+			array(
+				'strategy'  => 'defer',
+				'in_footer' => true,
+			)
+		);
 
-		wp_localize_script( 'tvpg-frontend', 'tvpgParams', array(
-			'settings'    => $settings,
-			'needsSlider' => $needs_slider,
-			'archiveSwap' => $is_product_loop && $archive_swap_on,
-		) );
+		wp_localize_script(
+			'tvpg-frontend',
+			'tvpgParams',
+			array(
+				'settings'    => $settings,
+				'needsSlider' => $needs_slider,
+				'archiveSwap' => $archive_swap,
+			)
+		);
 
 		// Dynamic CSS for video sizing.
 		$fit        = ( 'cover' === TVPG_Settings::get( 'video_sizing' ) ) ? 'cover' : 'contain';
@@ -121,6 +179,7 @@ class TVPG_Frontend {
 		}
 
 		wp_add_inline_style( 'tvpg-frontend', $custom_css );
+		$this->assets_enqueued = true;
 	}
 
 
@@ -135,6 +194,8 @@ class TVPG_Frontend {
 	 * @return string
 	 */
 	public function filter_loop_product_thumbnail( $html, $post_id, $post_thumbnail_id, $size, $attr ) {
+		unset( $post_thumbnail_id, $size, $attr );
+
 		if ( ! $this->is_archive_swap_enabled() ) {
 			return $html;
 		}
@@ -163,11 +224,16 @@ class TVPG_Frontend {
 			$gallery_ids = $product->get_gallery_image_ids();
 			$first_id    = ! empty( $gallery_ids ) ? absint( $gallery_ids[0] ) : 0;
 			if ( $first_id > 0 ) {
-				$secondary_markup = wp_get_attachment_image( $first_id, 'woocommerce_thumbnail', false, array(
-					'class'    => 'tvpg-loop-secondary-image',
-					'loading'  => 'lazy',
-					'decoding' => 'async',
-				) );
+				$secondary_markup = wp_get_attachment_image(
+					$first_id,
+					'woocommerce_thumbnail',
+					false,
+					array(
+						'class'    => 'tvpg-loop-secondary-image',
+						'loading'  => 'lazy',
+						'decoding' => 'async',
+					)
+				);
 			}
 		}
 
@@ -226,11 +292,16 @@ class TVPG_Frontend {
 			$gallery_ids = $product->get_gallery_image_ids();
 			$first_id    = ! empty( $gallery_ids ) ? absint( $gallery_ids[0] ) : 0;
 			if ( $first_id > 0 ) {
-				$secondary_markup = wp_get_attachment_image( $first_id, 'woocommerce_thumbnail', false, array(
-					'class'    => 'tvpg-loop-secondary-image',
-					'loading'  => 'lazy',
-					'decoding' => 'async',
-				) );
+				$secondary_markup = wp_get_attachment_image(
+					$first_id,
+					'woocommerce_thumbnail',
+					false,
+					array(
+						'class'    => 'tvpg-loop-secondary-image',
+						'loading'  => 'lazy',
+						'decoding' => 'async',
+					)
+				);
 			}
 		}
 
@@ -285,11 +356,16 @@ class TVPG_Frontend {
 			$gallery_ids = $product->get_gallery_image_ids();
 			$first_id    = ! empty( $gallery_ids ) ? absint( $gallery_ids[0] ) : 0;
 			if ( $first_id > 0 ) {
-				$secondary_markup = wp_get_attachment_image( $first_id, 'woocommerce_thumbnail', false, array(
-					'class'    => 'tvpg-loop-secondary-image',
-					'loading'  => 'lazy',
-					'decoding' => 'async',
-				) );
+				$secondary_markup = wp_get_attachment_image(
+					$first_id,
+					'woocommerce_thumbnail',
+					false,
+					array(
+						'class'    => 'tvpg-loop-secondary-image',
+						'loading'  => 'lazy',
+						'decoding' => 'async',
+					)
+				);
 			}
 		}
 
@@ -337,11 +413,16 @@ class TVPG_Frontend {
 		$gallery_ids = $product->get_gallery_image_ids();
 		$first_id    = ! empty( $gallery_ids ) ? absint( $gallery_ids[0] ) : 0;
 		if ( $first_id > 0 ) {
-			return wp_get_attachment_image( $first_id, 'woocommerce_thumbnail', false, array(
-				'class'    => 'tvpg-loop-secondary-image',
-				'loading'  => 'lazy',
-				'decoding' => 'async',
-			) );
+			return wp_get_attachment_image(
+				$first_id,
+				'woocommerce_thumbnail',
+				false,
+				array(
+					'class'    => 'tvpg-loop-secondary-image',
+					'loading'  => 'lazy',
+					'decoding' => 'async',
+				)
+			);
 		}
 
 		return '';
@@ -384,8 +465,6 @@ class TVPG_Frontend {
 		remove_theme_support( 'wc-product-gallery-lightbox' );
 		remove_theme_support( 'wc-product-gallery-slider' );
 
-		remove_action( 'woocommerce_before_single_product_summary', 'woocommerce_show_product_images', 20 );
-
 		// Flatsome compatibility.
 		remove_action( 'woocommerce_before_single_product_summary', 'flatsome_woocommerce_show_product_images', 20 );
 		remove_action( 'woocommerce_before_single_product_summary', 'woocommerce_show_product_images_flatsome', 20 );
@@ -422,6 +501,8 @@ class TVPG_Frontend {
 	 * @return string Modified template path.
 	 */
 	public function override_gallery_template( $template, $template_name, $template_path ) {
+		unset( $template_path );
+
 		if ( 'single-product/product-image.php' === $template_name ) {
 			$plugin_template = TVPG_PATH . 'templates/single-product/product-image.php';
 			if ( file_exists( $plugin_template ) ) {
@@ -438,8 +519,6 @@ class TVPG_Frontend {
 	 * @return void
 	 */
 	public function remove_flatsome_late_hooks() {
-		remove_action( 'woocommerce_before_single_product_summary', 'woocommerce_show_product_images', 10 );
-		remove_action( 'woocommerce_before_single_product_summary', 'woocommerce_show_product_images', 20 );
 		remove_action( 'woocommerce_before_single_product_summary', 'flatsome_woocommerce_show_product_images', 20 );
 		remove_action( 'woocommerce_before_single_product_summary', 'flatsome_product_image_tools', 20 );
 		remove_action( 'woocommerce_before_single_product_summary', 'flatsome_product_image_vertical', 20 );
@@ -477,18 +556,20 @@ class TVPG_Frontend {
 	 * @return string Gallery HTML.
 	 */
 	public function render_shortcode( $atts = array() ) {
+		$this->enqueue_gallery_assets( true, false );
+
 		$atts = shortcode_atts(
 			array( 'product_id' => 0 ),
 			$atts,
 			'tvpg_gallery'
 		);
 
-		$product_id = absint( $atts['product_id'] );
+		$product_id       = absint( $atts['product_id'] );
 		$original_post    = null;
 		$original_product = null;
 
 		if ( $product_id > 0 ) {
-			global $post, $product;
+			global $post, $product; // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedVariableFound
 			$target_post    = get_post( $product_id );
 			$target_product = wc_get_product( $product_id );
 
@@ -499,7 +580,9 @@ class TVPG_Frontend {
 			$original_post    = $post;
 			$original_product = $product;
 
-			$post    = $target_post;
+			// phpcs:ignore WordPress.WP.GlobalVariablesOverride.Prohibited
+			$post = $target_post;
+			// phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedVariableFound -- Required to render the selected product in shortcode context.
 			$product = $target_product;
 			setup_postdata( $post );
 		}
@@ -510,13 +593,15 @@ class TVPG_Frontend {
 			$output = ob_get_clean();
 		} finally {
 			if ( $product_id > 0 ) {
-				$post    = $original_post;
+				// phpcs:ignore WordPress.WP.GlobalVariablesOverride.Prohibited
+				$post = $original_post;
+				// phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedVariableFound -- Restores WooCommerce's global product after shortcode rendering.
 				$product = $original_product;
-			if ( $original_post ) {
-				setup_postdata( $original_post );
+				if ( $original_post ) {
+					setup_postdata( $original_post );
+				}
 			}
 		}
-	}
 
 		return $output;
 	}

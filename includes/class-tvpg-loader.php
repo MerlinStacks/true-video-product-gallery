@@ -7,7 +7,7 @@
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
-    exit;
+	exit;
 }
 
 /**
@@ -19,90 +19,87 @@ if ( ! defined( 'ABSPATH' ) ) {
  */
 class TVPG_Loader {
 
-    /**
-     * Frontend instance for singleton access.
-     *
-     * @since 1.2.0
-     * @var TVPG_Frontend|null
-     */
-    public static $frontend = null;
+	/**
+	 * Frontend instance for singleton access.
+	 *
+	 * @since 1.2.0
+	 * @var TVPG_Frontend|null
+	 */
+	public static $frontend = null;
 
-    /**
-     * Run the plugin.
-     *
-     * Loads dependencies and registers all hooks for admin and frontend.
-     *
-     * @since 1.0.0
-     * @return void
-     */
-    public function run() {
-        require_once TVPG_PATH . 'includes/class-tvpg-settings.php';
-        require_once TVPG_PATH . 'includes/class-tvpg-video-parser.php';
-        require_once TVPG_PATH . 'includes/class-tvpg-video-embed.php';
-        require_once TVPG_PATH . 'includes/class-tvpg-schema.php';
-        require_once TVPG_PATH . 'includes/class-tvpg-gallery-renderer.php';
-        require_once TVPG_PATH . 'includes/class-tvpg-block-editor.php';
-        $this->define_admin_hooks();
-        $this->define_public_hooks();
-        new TVPG_Block_Editor();
-    }
+	/**
+	 * Run the plugin.
+	 *
+	 * Loads dependencies and registers all hooks for admin and frontend.
+	 *
+	 * @since 1.0.0
+	 * @return void
+	 */
+	public function run() {
+		require_once TVPG_PATH . 'includes/class-tvpg-settings.php';
+		require_once TVPG_PATH . 'includes/class-tvpg-video-parser.php';
+		require_once TVPG_PATH . 'includes/class-tvpg-video-embed.php';
+		require_once TVPG_PATH . 'includes/class-tvpg-schema.php';
+		require_once TVPG_PATH . 'includes/class-tvpg-gallery-renderer.php';
+		require_once TVPG_PATH . 'includes/class-tvpg-block-editor.php';
+		$this->define_admin_hooks();
+		$this->define_public_hooks();
+		new TVPG_Block_Editor();
+	}
 
-    /**
-     * Register admin hooks.
-     *
-     * Loads and initializes the admin class.
-     *
-     * @since 1.0.0
-     * @return void
-     */
-    private function define_admin_hooks() {
-        require_once TVPG_PATH . 'includes/class-tvpg-admin.php';
-        new TVPG_Admin();
-    }
+	/**
+	 * Register admin hooks.
+	 *
+	 * Loads and initializes the admin class.
+	 *
+	 * @since 1.0.0
+	 * @return void
+	 */
+	private function define_admin_hooks() {
+		require_once TVPG_PATH . 'includes/class-tvpg-admin.php';
+		new TVPG_Admin();
+	}
 
-    /**
-     * Register public-facing hooks.
-     *
-     * Loads the frontend class and registers all public hooks including
-     * script enqueuing, gallery rendering, and variation video support.
-     *
-     * @since 1.0.0
-     * @return void
-     */
-    private function define_public_hooks() {
-        require_once TVPG_PATH . 'includes/class-tvpg-frontend.php';
-        self::$frontend = new TVPG_Frontend();
-        $archive_swap_enabled = ! ( defined( 'TVPG_DISABLE_ARCHIVE_SWAP' ) && TVPG_DISABLE_ARCHIVE_SWAP )
-            && (bool) TVPG_Settings::get( 'archive_swap', true );
+	/**
+	 * Register public-facing hooks.
+	 *
+	 * Loads the frontend class and registers all public hooks including
+	 * script enqueuing, gallery rendering, and variation video support.
+	 *
+	 * @since 1.0.0
+	 * @return void
+	 */
+	private function define_public_hooks() {
+		require_once TVPG_PATH . 'includes/class-tvpg-frontend.php';
+		self::$frontend       = new TVPG_Frontend();
+		$archive_swap_enabled = ! ( defined( 'TVPG_DISABLE_ARCHIVE_SWAP' ) && TVPG_DISABLE_ARCHIVE_SWAP )
+			&& (bool) TVPG_Settings::get( 'archive_swap', true );
 
-        add_action( 'wp_enqueue_scripts', array( self::$frontend, 'enqueue_scripts' ) );
-        
-        // Remove default WooCommerce gallery hooks.
-        add_action( 'after_setup_theme', array( self::$frontend, 'remove_default_gallery_support' ), 100 );
-        
-        // Add our custom gallery.
-		// BUG-02 fix: removed direct render_gallery action hook — the template override
-		// (override_gallery_template → product-image.php) handles rendering. Having both
-		// caused double gallery rendering on themes using the standard WC template system.
-        add_action( 'init', array( self::$frontend, 'register_shortcode' ) );
-        add_filter( 'woocommerce_available_variation', array( self::$frontend, 'add_variation_video_data' ), 10, 3 );
-        add_filter( 'wp_resource_hints', array( self::$frontend, 'add_resource_hints' ), 10, 2 );
-        if ( $archive_swap_enabled ) {
-            add_filter( 'post_thumbnail_html', array( self::$frontend, 'filter_loop_product_thumbnail' ), 20, 5 );
-            add_filter( 'woocommerce_product_get_image', array( self::$frontend, 'filter_loop_wc_product_image' ), 20, 6 );
-        }
-        if ( $archive_swap_enabled && method_exists( self::$frontend, 'render_loop_media_payload' ) ) {
-            add_action( 'woocommerce_after_shop_loop_item_title', array( self::$frontend, 'render_loop_media_payload' ), 1 );
-        }
-    }
+		add_action( 'wp_enqueue_scripts', array( self::$frontend, 'enqueue_scripts' ) );
 
-    /**
-     * Get the frontend instance.
-     *
-     * @since 1.2.0
-     * @return TVPG_Frontend|null The frontend instance.
-     */
-    public static function get_frontend() {
-        return self::$frontend;
-    }
+		// Remove default WooCommerce gallery hooks.
+		add_action( 'after_setup_theme', array( self::$frontend, 'remove_default_gallery_support' ), 100 );
+
+		// Rendering is handled through WooCommerce's product-image.php template override.
+		add_action( 'init', array( self::$frontend, 'register_shortcode' ) );
+		add_filter( 'woocommerce_available_variation', array( self::$frontend, 'add_variation_video_data' ), 10, 3 );
+		add_filter( 'wp_resource_hints', array( self::$frontend, 'add_resource_hints' ), 10, 2 );
+		if ( $archive_swap_enabled ) {
+			add_filter( 'post_thumbnail_html', array( self::$frontend, 'filter_loop_product_thumbnail' ), 20, 5 );
+			add_filter( 'woocommerce_product_get_image', array( self::$frontend, 'filter_loop_wc_product_image' ), 20, 6 );
+		}
+		if ( $archive_swap_enabled && method_exists( self::$frontend, 'render_loop_media_payload' ) ) {
+			add_action( 'woocommerce_after_shop_loop_item_title', array( self::$frontend, 'render_loop_media_payload' ), 1 );
+		}
+	}
+
+	/**
+	 * Get the frontend instance.
+	 *
+	 * @since 1.2.0
+	 * @return TVPG_Frontend|null The frontend instance.
+	 */
+	public static function get_frontend() {
+		return self::$frontend;
+	}
 }

@@ -44,7 +44,7 @@ jQuery(document).ready(function ($) {
         });
         image_frame.on('select', function () {
             var attachment = image_frame.state().get('selection').first().toJSON();
-            $('#tvpg_video_thumb_url').val(attachment.url);
+            $('#tvpg_video_thumb_url').val(attachment.url).trigger('change');
         });
         image_frame.open();
     });

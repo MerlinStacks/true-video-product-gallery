@@ -42,12 +42,22 @@
     </rule>
 
     <!-- Prefix for globals / hooks. -->
-    <rule ref="WordPress.NamingConventions.PrefixAllGlobals">
-        <properties>
-            <property name="prefixes" type="array">
-                <element value="tvpg"/>
-                <element value="TVPG"/>
-            </property>
-        </properties>
-    </rule>
+	<rule ref="WordPress.NamingConventions.PrefixAllGlobals">
+		<properties>
+			<property name="prefixes" type="array">
+				<element value="tvpg"/>
+				<element value="TVPG"/>
+			</property>
+		</properties>
+	</rule>
+
+	<!-- WooCommerce capabilities used by product/editor permissions. -->
+	<rule ref="WordPress.WP.Capabilities">
+		<properties>
+			<property name="custom_capabilities" type="array">
+				<element value="edit_products"/>
+				<element value="manage_woocommerce"/>
+			</property>
+		</properties>
+	</rule>
 </ruleset>

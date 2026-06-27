@@ -10,12 +10,11 @@
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
-    exit;
+	exit;
 }
 
 // Use the singleton frontend instance to avoid creating duplicate instances.
-$frontend = TVPG_Loader::get_frontend();
-if ( $frontend ) {
-    $frontend->render_gallery();
+$tvpg_frontend = TVPG_Loader::get_frontend();
+if ( $tvpg_frontend ) {
+	$tvpg_frontend->render_gallery();
 }
-

@@ -125,10 +125,10 @@ class TVPG_Video_Embed {
 		$id           = $info['id'];
 		$use_autoplay = ( 'lazy' === $preload_mode ) ? 1 : ( $settings['autoplay'] ? 1 : 0 );
 		$params       = array(
-			'api'       => 1,
-			'autoplay'  => $use_autoplay,
-			'loop'      => $settings['loop'] ? 1 : 0,
-			'controls'  => $settings['show_controls'] ? 1 : 0,
+			'api'      => 1,
+			'autoplay' => $use_autoplay,
+			'loop'     => $settings['loop'] ? 1 : 0,
+			'controls' => $settings['show_controls'] ? 1 : 0,
 		);
 		if ( $use_autoplay && $settings['mute_autoplay'] ) {
 			$params['muted'] = 1;
@@ -211,7 +211,7 @@ class TVPG_Video_Embed {
 		$loop       = $settings['loop'] ? 'loop' : '';
 		$autoplay   = $settings['autoplay'] ? 'autoplay' : '';
 		$muted      = ( $settings['autoplay'] && $settings['mute_autoplay'] ) ? 'muted' : '';
-		$object_fit = $settings['video_sizing'] === 'cover' ? 'cover' : 'contain';
+		$object_fit = 'cover' === $settings['video_sizing'] ? 'cover' : 'contain';
 
 		// IMP-11 fix: honour the user's preload setting including 'auto'.
 		if ( ! $settings['autoplay'] && 'auto' !== $preload_mode ) {
@@ -258,7 +258,7 @@ class TVPG_Video_Embed {
 		// No-JS fallback: disable autoplay so the video doesn't surprise users.
 		$noscript_url = str_replace( 'autoplay=1', 'autoplay=0', $embed_url );
 
-		$html  = '';
+		$html = '';
 
 		// noscript fallback — users without JS still get the actual iframe.
 		$html .= '<noscript><div class="tvpg-responsive-video ' . esc_attr( $sizing_class ) . '">';
@@ -362,14 +362,14 @@ class TVPG_Video_Embed {
 	public static function get_allowed_html() {
 		return array(
 			'div'        => array(
-				'class'            => array(),
-				'style'            => array(),
-				'data-embed-url'   => array(),
-				'data-provider'    => array(),
-				'data-embed-type'  => array(),
-				'data-video-id'    => array(),
-				'data-video-url'   => array(),
-				'aria-label'       => array(),
+				'class'           => array(),
+				'style'           => array(),
+				'data-embed-url'  => array(),
+				'data-provider'   => array(),
+				'data-embed-type' => array(),
+				'data-video-id'   => array(),
+				'data-video-url'  => array(),
+				'aria-label'      => array(),
 			),
 			'img'        => array(
 				'src'           => array(),

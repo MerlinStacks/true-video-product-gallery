@@ -3,6 +3,17 @@
 
 ## [Unreleased]
 
+## [1.7.14] - 2026-06-27
+### Fixed
+- Restored reliable single-product gallery rendering on standard WooCommerce themes.
+- Shortcode galleries now load required frontend assets outside product pages.
+- Product block editor video meta now reads and saves through the registered REST meta fields.
+- Multiple galleries and quick-view galleries are scoped independently on the frontend.
+- Hardened provider URL parsing to avoid matching YouTube/Vimeo-like paths on unrelated domains.
+
+### Improved
+- Updated build/test tooling, coding standards compliance, and dependency audit status.
+
 ## [1.7.0] - 2026-05-11
 ### Added
 - **Gallery Auto-Scroll Controls**: Added global settings to auto-scroll through slides with configurable image delay while always waiting for active video playback to finish before advancing.

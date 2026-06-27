@@ -404,8 +404,12 @@
 
     initArchiveMediaSwap();
 
-    var mainSliderEl = document.querySelector('.tvpg-main-slider');
-    if (!mainSliderEl) return;
+    function initProductGallery(galleryWrapper) {
+        var mainSliderEl = galleryWrapper.querySelector('.tvpg-main-slider');
+        if (!mainSliderEl || mainSliderEl.__tvpgInitialized) return;
+
+        mainSliderEl.__tvpgInitialized = true;
+        var thumbSliderEl = galleryWrapper.querySelector('.tvpg-thumb-slider');
 
     // BUG-H1 fix: sanitise HTML before innerHTML to prevent XSS from tampered responses.
     function sanitiseVideoHtml(html) {
@@ -486,10 +490,10 @@
     var mainSlider = null;
 
     if (needsSlider && typeof Swiper !== 'undefined') {
-        var galleryWrapper = mainSliderEl.closest('.tvpg-gallery-wrapper');
         if (galleryWrapper) galleryWrapper.classList.add('tvpg-swiper-initialised');
 
-        thumbSlider = new Swiper('.tvpg-thumb-slider', {
+        if (thumbSliderEl) {
+            thumbSlider = new Swiper(thumbSliderEl, {
             spaceBetween: 10,
             slidesPerView: 4,
             freeMode: true,
@@ -499,7 +503,8 @@
                 640: { slidesPerView: 4 },
                 1024: { slidesPerView: 5 }
             }
-        });
+            });
+        }
 
         var requestedEffect = settings.transition_effect === 'fade' ? 'fade' : 'slide';
         var mainSliderConfig = {
@@ -507,10 +512,10 @@
             effect: requestedEffect,
             speed: 400,
             navigation: {
-                nextEl: '.swiper-button-next',
-                prevEl: '.swiper-button-prev',
+                nextEl: galleryWrapper.querySelector('.swiper-button-next'),
+                prevEl: galleryWrapper.querySelector('.swiper-button-prev'),
             },
-            thumbs: { swiper: thumbSlider },
+            thumbs: thumbSlider ? { swiper: thumbSlider } : undefined,
             // IMP-08: keyboard navigation.
             keyboard: { enabled: true, onlyInViewport: true },
             // IMP-09: touch events target wrapper to avoid video capture.
@@ -519,26 +524,16 @@
         };
 
         try {
-            mainSlider = new Swiper('.tvpg-main-slider', mainSliderConfig);
+            mainSlider = new Swiper(mainSliderEl, mainSliderConfig);
         } catch (err) {
             if (requestedEffect === 'fade') {
                 mainSliderConfig.effect = 'slide';
-                mainSlider = new Swiper('.tvpg-main-slider', mainSliderConfig);
+                mainSlider = new Swiper(mainSliderEl, mainSliderConfig);
             } else {
                 throw err;
             }
         }
     }
-
-    // ── Quick-View Re-Init Listener ─────────────────────────────────────────
-    // Allows AJAX Quick-View popups to trigger gallery re-initialisation.
-    var hasQuickViewInit = false;
-    document.addEventListener('tvpg-init-gallery', function () {
-        if (hasQuickViewInit) return;
-        hasQuickViewInit = true;
-        // Trigger a window resize — Swiper re-calculates dimensions on resize.
-        window.dispatchEvent(new Event('resize'));
-    });
 
     // ── Video Playback Helpers ───────────────────────────────────────────────
     // Specific origins for postMessage — never use '*' to prevent leaking
@@ -661,11 +656,11 @@
     }
 
     function bindNativeVideoEnded(slide) {
-        if (!slide || slide.__tvpgEndedBound) return;
+        if (!slide) return;
         var video = slide.querySelector('video');
-        if (!video) return;
+        if (!video || video.__tvpgEndedBound) return;
         video.addEventListener('ended', onNativeVideoEnded);
-        slide.__tvpgEndedBound = true;
+        video.__tvpgEndedBound = true;
     }
 
     function bindAllNativeVideoEnded() {
@@ -719,6 +714,7 @@
         if (!container) return;
         var videos = container.querySelectorAll('video');
         videos.forEach(function (video) {
+            if (video.__tvpgErrorBound) return;
             video.addEventListener('error', function () {
                 var wrapper = video.closest('.woocommerce-product-gallery__image') || video.parentNode;
                 var errorEl = document.createElement('div');
@@ -726,6 +722,7 @@
                 errorEl.innerHTML = '<svg viewBox="0 0 24 24" width="48" height="48" fill="none" stroke="#94a3b8" stroke-width="1.5"><path d="M15.75 10.5l4.72-4.72a.75.75 0 011.28.53v11.38a.75.75 0 01-1.28.53l-4.72-4.72M4.5 18.75h9a2.25 2.25 0 002.25-2.25v-9a2.25 2.25 0 00-2.25-2.25h-9A2.25 2.25 0 002.25 7.5v9a2.25 2.25 0 002.25 2.25z"/><line x1="3" y1="3" x2="21" y2="21" stroke="#94a3b8" stroke-width="1.5"/></svg><p>Video unavailable</p>';
                 video.replaceWith(errorEl);
             });
+            video.__tvpgErrorBound = true;
         });
     }
 
@@ -959,7 +956,7 @@
     // ── Thumbnail Video Autoplay ────────────────────────────────────────────
     // Explicit .play() as a safety net — the HTML autoplay attribute can be
     // ignored by some browsers/policies even when the video is muted.
-    var thumbVideo = document.querySelector('.tvpg-thumb-slider .tvpg-thumb-video');
+    var thumbVideo = galleryWrapper.querySelector('.tvpg-thumb-slider .tvpg-thumb-video');
     if (thumbVideo) {
         // Ensure the video stays muted (required for autoplay policy).
         thumbVideo.muted = true;
@@ -1055,7 +1052,7 @@
     var galleryImageEl = videoSlide ? videoSlide.querySelector('.woocommerce-product-gallery__image') : null;
     var originalVideoHtml = galleryImageEl ? galleryImageEl.innerHTML : '';
 
-    var videoThumbSlide = document.querySelector('.tvpg-thumb-slider .swiper-slide.tvpg-video-thumb-slide');
+    var videoThumbSlide = galleryWrapper.querySelector('.tvpg-thumb-slider .swiper-slide.tvpg-video-thumb-slide');
     var originalVideoThumbHtml = videoThumbSlide ? videoThumbSlide.innerHTML : '';
 
     /**
@@ -1132,7 +1129,7 @@
 
         afterDomSettle(function () {
             var curVideoSlide = mainSliderEl.querySelector('.swiper-slide.tvpg-video-slide');
-            var curVideoThumbSlide = document.querySelector('.tvpg-thumb-slider .swiper-slide.tvpg-video-thumb-slide');
+            var curVideoThumbSlide = galleryWrapper.querySelector('.tvpg-thumb-slider .swiper-slide.tvpg-video-thumb-slide');
             var curFirstImageSlide = mainSliderEl.querySelector('.swiper-slide:not(.tvpg-video-slide)');
             var curFirstImage = curFirstImageSlide ? curFirstImageSlide.querySelector('img') : null;
 
@@ -1146,6 +1143,8 @@
                 if (curVideoSlide) {
                     var container = curVideoSlide.querySelector('.woocommerce-product-gallery__image');
                     if (container) container.innerHTML = safeVideoHtml;
+                    bindNativeVideoEnded(curVideoSlide);
+                    attachVideoErrorHandler(curVideoSlide);
 
                     if (mainSlider && mainSlider.slides) {
                         mainSlider.slideTo(Array.from(curVideoSlide.parentNode.children).indexOf(curVideoSlide));
@@ -1159,7 +1158,7 @@
                     // Dynamic injection.
                     var newSlideHtml = '<div class="swiper-slide tvpg-video-slide tvpg-dynamic-slide"><div class="woocommerce-product-gallery__image">' + safeVideoHtml + '</div></div>';
                     var newThumbHtml = '<div class="swiper-slide tvpg-video-thumb-slide tvpg-dynamic-slide">' + (safeThumbHtml || '<span class="tvpg-play-icon"></span>') + '</div>';
-                    var hasPlaceholder = !!document.querySelector('.tvpg-placeholder-slide');
+                    var hasPlaceholder = !!galleryWrapper.querySelector('.tvpg-placeholder-slide');
                     var newIndex;
 
                     if (hasPlaceholder) {
@@ -1174,6 +1173,8 @@
 
                     if (mainSlider && mainSlider.slides) {
                         mainSlider.slideTo(newIndex);
+                        bindNativeVideoEnded(mainSlider.slides[newIndex]);
+                        attachVideoErrorHandler(mainSlider.slides[newIndex]);
                         playVideo(mainSlider.slides[newIndex]);
                     }
                 }
@@ -1226,7 +1227,7 @@
     }
 
     function removeDynamicSlides() {
-        if (!document.querySelector('.tvpg-dynamic-slide')) return;
+        if (!galleryWrapper.querySelector('.tvpg-dynamic-slide')) return;
 
         if (mainSlider) {
             var indices = [];
@@ -1252,13 +1253,20 @@
     // WooCommerce triggers via jQuery which also dispatches a native event
     // in jQuery 3.x+, causing handleVariation to fire twice.
 
+    function variationEventBelongsToGallery(event) {
+        var productNode = galleryWrapper.closest('.product');
+        return !productNode || !event.target || productNode.contains(event.target);
+    }
+
     // jQuery bridge — WC triggers jQuery events, so we listen via jQuery if available.
     if (typeof jQuery !== 'undefined') {
         jQuery(document).on('found_variation', function (event, variation) {
+            if (!variationEventBelongsToGallery(event)) return;
             handleVariation(variation);
         });
 
-        jQuery(document).on('reset_image', 'form.variations_form', function () {
+        jQuery(document).on('reset_image', 'form.variations_form', function (event) {
+            if (!variationEventBelongsToGallery(event)) return;
             // IMP-9 fix: re-query the image element from the live DOM
             // in case the theme replaced the original element.
             var liveFirstSlide = mainSliderEl.querySelector(originalImage.slideSelector);
@@ -1295,5 +1303,19 @@
             if (mainSlider) mainSlider.slideTo(originalImage.index);
         });
     }
+
+    }
+
+    function initAllProductGalleries() {
+        document.querySelectorAll('.tvpg-gallery-wrapper').forEach(initProductGallery);
+    }
+
+    initAllProductGalleries();
+
+    // Allows AJAX Quick-View popups to initialize newly inserted galleries.
+    document.addEventListener('tvpg-init-gallery', function () {
+        initAllProductGalleries();
+        window.dispatchEvent(new Event('resize'));
+    });
 
 })();

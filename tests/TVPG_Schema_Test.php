@@ -18,7 +18,7 @@ class TVPG_Schema_Test extends TestCase {
 		$ref = new ReflectionClass( TVPG_Schema::class );
 		$prop = $ref->getProperty( 'pending' );
 		$prop->setAccessible( true );
-		$prop->setValue( array() );
+		$prop->setValue( null, array() );
 
 		global $_test_actions;
 		$_test_actions = array();

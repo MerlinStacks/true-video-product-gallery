@@ -45,7 +45,7 @@ class TVPG_Block_Editor {
 	 */
 	public function register_meta() {
 		$meta_fields = array(
-			'_tvpg_video_url'      => array(
+			'_tvpg_video_url'       => array(
 				'type'              => 'string',
 				'description'       => __( 'Product video URL', 'true-video-product-gallery' ),
 				'single'            => true,
@@ -67,7 +67,7 @@ class TVPG_Block_Editor {
 					return current_user_can( 'edit_products' );
 				},
 			),
-			'_tvpg_use_same_video' => array(
+			'_tvpg_use_same_video'  => array(
 				'type'              => 'string',
 				'description'       => __( 'Use same video for all variations', 'true-video-product-gallery' ),
 				'single'            => true,

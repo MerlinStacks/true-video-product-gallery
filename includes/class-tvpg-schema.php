@@ -85,7 +85,10 @@ class TVPG_Schema {
 		}
 
 		$product_name = $product->get_name();
-		$product_desc = $product->get_short_description() ?: $product->get_description();
+		$product_desc = $product->get_short_description();
+		if ( ! $product_desc ) {
+			$product_desc = $product->get_description();
+		}
 		$product_desc = wp_strip_all_tags( $product_desc );
 		$upload_date  = get_the_date( 'c', $product->get_id() );
 
@@ -100,7 +103,7 @@ class TVPG_Schema {
 				__( '%s - Product Video', 'true-video-product-gallery' ),
 				$product_name
 			),
-			'description' => $product_desc ?: $product_name,
+			'description' => $product_desc ? $product_desc : $product_name,
 			'uploadDate'  => $upload_date,
 			'contentUrl'  => $embed_url,
 			'embedUrl'    => $embed_url,
@@ -135,7 +138,8 @@ class TVPG_Schema {
 		}
 
 		if ( 'vimeo' === $video_info['type'] ) {
-			return TVPG_Video_Parser::get_vimeo_thumbnail( $video_info['id'] ) ?: '';
+			$thumbnail_url = TVPG_Video_Parser::get_vimeo_thumbnail( $video_info['id'] );
+			return false === $thumbnail_url ? '' : $thumbnail_url;
 		}
 
 		if ( $product->get_image_id() ) {
