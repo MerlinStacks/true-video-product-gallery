@@ -44,7 +44,12 @@ if ( ! function_exists( 'tvpg_cleanup_site' ) ) {
 
 // Multisite: loop every blog and clean up.
 if ( is_multisite() ) {
-	$tvpg_site_ids = get_sites( array( 'fields' => 'ids' ) );
+	$tvpg_site_ids = get_sites(
+		array(
+			'fields' => 'ids',
+			'number' => 0,
+		)
+	);
 	foreach ( $tvpg_site_ids as $tvpg_site_id ) {
 		switch_to_blog( $tvpg_site_id );
 		tvpg_cleanup_site();

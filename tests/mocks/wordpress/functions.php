@@ -103,6 +103,10 @@ function wp_json_encode( $data, $options = 0 ) {
 	return json_encode( $data, $options );
 }
 
+function wp_strip_all_tags( $text ) {
+	return strip_tags( $text );
+}
+
 function wp_kses( $string, $allowed_html ) {
 	return strip_tags( $string );
 }

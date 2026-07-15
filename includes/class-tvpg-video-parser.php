@@ -207,12 +207,18 @@ class TVPG_Video_Parser {
 	 * @return string|false The video ID, or false if not found.
 	 */
 	private static function get_tiktok_id( $url ) {
-		// Match: tiktok.com/@username/video/1234567890123456789.
-		if ( preg_match( '/tiktok\.com\/@[^\/]+\/video\/(\d+)/', $url, $matches ) ) {
-			return $matches[1];
+		$host = self::get_normalized_host( $url );
+		if ( 'tiktok.com' !== $host && ! str_ends_with( $host, '.tiktok.com' ) ) {
+			return false;
 		}
-		// Match: vm.tiktok.com/ABC123 (short URL - return full URL as ID).
-		if ( preg_match( '/vm\.tiktok\.com\/([a-zA-Z0-9]+)/', $url, $matches ) ) {
+
+		// TikTok short URLs are redirect tokens, not embeddable video IDs.
+		if ( 'vm.tiktok.com' === $host || 'vt.tiktok.com' === $host ) {
+			return false;
+		}
+
+		$path = (string) wp_parse_url( $url, PHP_URL_PATH );
+		if ( preg_match( '#^/@[^/]+/video/(\d+)(?:/|$)#', $path, $matches ) ) {
 			return $matches[1];
 		}
 		return false;
@@ -228,8 +234,13 @@ class TVPG_Video_Parser {
 	 * @return string|false The post ID, or false if not found.
 	 */
 	private static function get_instagram_id( $url ) {
-		// Match: instagram.com/reel/ABC123 or instagram.com/p/ABC123.
-		if ( preg_match( '/instagram\.com\/(?:reel|p)\/([a-zA-Z0-9_-]+)/', $url, $matches ) ) {
+		$host = self::get_normalized_host( $url );
+		if ( 'instagram.com' !== $host && ! str_ends_with( $host, '.instagram.com' ) ) {
+			return false;
+		}
+
+		$path = (string) wp_parse_url( $url, PHP_URL_PATH );
+		if ( preg_match( '#^/(?:reel|p)/([a-zA-Z0-9_-]+)(?:/|$)#', $path, $matches ) ) {
 			return $matches[1];
 		}
 		return false;

@@ -148,6 +148,7 @@ jQuery(document).ready(function ($) {
         }
 
         fetchVideoParse(url, function (resp) {
+			if ($urlInput.val().trim() !== url) return;
             if (!resp.success) {
                 $previewContainer.html('<div class="tvpg-empty-state"><span class="dashicons dashicons-video-alt3"></span><p>Invalid Video URL</p></div>');
                 return;
@@ -170,6 +171,7 @@ jQuery(document).ready(function ($) {
             }
             $previewContainer.html(html);
         }, function () {
+			if ($urlInput.val().trim() !== url) return;
             $previewContainer.html('<div class="tvpg-empty-state"><span class="dashicons dashicons-video-alt3"></span><p>Failed to parse URL</p></div>');
         });
     }
@@ -194,6 +196,7 @@ jQuery(document).ready(function ($) {
         }
 
         fetchVideoParse(url, function (resp) {
+			if ($urlInput.val().trim() !== url || $thumbInput.val()) return;
             if (!resp.success) return;
 
             var html = '';

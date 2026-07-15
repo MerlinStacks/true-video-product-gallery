@@ -28,14 +28,15 @@ class TVPG_Admin {
 	 * @since 1.0.0
 	 */
 	public function __construct() {
-		add_action( 'save_post', array( $this, 'save_video_meta_box' ) );
-		add_action( 'admin_menu', array( $this, 'add_settings_page' ) );
-		add_action( 'admin_enqueue_scripts', array( $this, 'enqueue_admin_assets' ) );
 		add_action( 'rest_api_init', array( $this, 'register_rest_routes' ) );
 
-		// WC Tabs.
-		add_filter( 'woocommerce_product_data_tabs', array( $this, 'add_product_data_tab' ) );
-		add_action( 'woocommerce_product_data_panels', array( $this, 'render_product_data_panel' ) );
+		if ( is_admin() ) {
+			add_action( 'save_post_product', array( $this, 'save_video_meta_box' ) );
+			add_action( 'admin_menu', array( $this, 'add_settings_page' ) );
+			add_action( 'admin_enqueue_scripts', array( $this, 'enqueue_admin_assets' ) );
+			add_filter( 'woocommerce_product_data_tabs', array( $this, 'add_product_data_tab' ) );
+			add_action( 'woocommerce_product_data_panels', array( $this, 'render_product_data_panel' ) );
+		}
 	}
 
 	/**
@@ -83,8 +84,9 @@ class TVPG_Admin {
 		}
 
 		// Product page assets.
-		$screen = get_current_screen();
-		if ( $screen && 'product' === $screen->id ) {
+		$screen          = get_current_screen();
+		$is_block_editor = $screen && method_exists( $screen, 'is_block_editor' ) && $screen->is_block_editor();
+		if ( $screen && 'product' === $screen->id && ! $is_block_editor ) {
 			wp_enqueue_media();
 			wp_enqueue_style( 'tvpg-admin-css', TVPG_URL . 'assets/css/tvpg-admin' . $suffix . '.css', array(), TVPG_VERSION );
 			wp_enqueue_script( 'tvpg-admin-product-js', TVPG_URL . 'assets/js/tvpg-admin-product' . $suffix . '.js', array( 'jquery' ), TVPG_VERSION, true );

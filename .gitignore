@@ -1,5 +1,9 @@
 # Build tools
 node_modules/
+vendor/
+.phpunit.result.cache
+.phpunit.cache/
+coverage/
 
 # Plugin distribution
 *.zip

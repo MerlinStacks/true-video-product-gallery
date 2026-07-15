@@ -333,7 +333,10 @@ class TVPG_Video_Embed {
 					$poster_attr = ' poster="' . esc_url( $poster_src ) . '"';
 				}
 			}
-			return '<video class="tvpg-thumb-video" autoplay muted loop playsinline preload="auto"' . $poster_attr . ' src="' . esc_url( $info['url'] ) . '" style="width:100%;height:100%;object-fit:cover;" tabindex="-1" aria-hidden="true"></video>' . self::get_thumb_play_icon();
+			if ( $poster_attr ) {
+				return '<img src="' . esc_url( $poster_src ) . '" alt="' . $aria_label . '" style="width:100%;height:100%;object-fit:cover;" loading="lazy" decoding="async" tabindex="-1" aria-hidden="true">' . self::get_thumb_play_icon();
+			}
+			return '<div class="tvpg-social-placeholder" style="width:100%;height:100%;"></div>' . self::get_thumb_play_icon();
 		}
 
 		return '';
@@ -405,6 +408,7 @@ class TVPG_Video_Embed {
 			),
 			'iframe'     => array(
 				'src'             => array(),
+				'data-src'        => array(),
 				'width'           => array(),
 				'height'          => array(),
 				'allowfullscreen' => array(),

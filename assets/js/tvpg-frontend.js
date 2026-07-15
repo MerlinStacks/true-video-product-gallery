@@ -14,395 +14,40 @@
 (function () {
     'use strict';
 
-    function initArchiveMediaSwap() {
-        var canRun = (typeof tvpgParams !== 'undefined') && !!tvpgParams.archiveSwap;
-        if (!canRun) return;
+    var YT_ORIGIN = 'https://www.youtube.com';
+    var VM_ORIGIN = 'https://player.vimeo.com';
+    var galleryInstances = [];
+    var globalListenersBound = false;
 
-        var connection = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
-        var saveDataEnabled = !!(connection && connection.saveData);
-        var effectiveType = connection && connection.effectiveType ? String(connection.effectiveType).toLowerCase() : '';
-        var slowConnection = effectiveType === 'slow-2g' || effectiveType === '2g' || effectiveType === '3g';
+    function registerGalleryInstance(instance) {
+        galleryInstances.push(instance);
+        if (globalListenersBound) return;
+        globalListenersBound = true;
 
-        if (saveDataEnabled || slowConnection) {
-            return;
+        function activeInstances() {
+            galleryInstances = galleryInstances.filter(function (item) {
+                return document.documentElement.contains(item.wrapper);
+            });
+            return galleryInstances;
         }
 
-        document.querySelectorAll('.product, .product-small').forEach(function (productCard) {
-            var existing = productCard.querySelector('.tvpg-loop-media');
-            if (existing) return;
-
-            var template = productCard.querySelector('.tvpg-loop-secondary-template');
-            if (!template || !template.innerHTML.trim()) return;
-
-            var imageTarget = productCard.querySelector('.box-image .image-fade_in_back, .box-image a, .woocommerce-LoopProduct-link, a.woocommerce-LoopProduct-link');
-            if (!imageTarget) return;
-
-            var primaryWrap = document.createElement('div');
-            primaryWrap.className = 'tvpg-loop-primary-media';
-            while (imageTarget.firstChild) {
-                primaryWrap.appendChild(imageTarget.firstChild);
-            }
-
-            if (!primaryWrap.firstChild) return;
-
-            var secondaryWrap = document.createElement('div');
-            secondaryWrap.className = 'tvpg-loop-secondary-media';
-            secondaryWrap.setAttribute('aria-hidden', 'true');
-            secondaryWrap.innerHTML = template.innerHTML;
-
-            var container = document.createElement('div');
-            container.className = 'tvpg-loop-media';
-            container.setAttribute('data-tvpg-loop-media', '1');
-            container.appendChild(primaryWrap);
-            container.appendChild(secondaryWrap);
-
-            imageTarget.appendChild(container);
+        window.addEventListener('message', function (event) {
+            activeInstances().forEach(function (item) { item.handleMessage(event); });
         });
 
-        var cards = document.querySelectorAll('.tvpg-loop-media');
-        if (!cards.length) return;
-
-        function setImportantStyles(el, styles) {
-            if (!el) return;
-            Object.keys(styles).forEach(function (prop) {
-                el.style.setProperty(prop, styles[prop], 'important');
-            });
-        }
-
-        function disableThemeEqualize(grid) {
-            if (!grid || !grid.querySelector('.tvpg-has-loop-media')) return;
-            grid.classList.remove('equalize-box');
-            grid.classList.remove('has-equal-box-heights');
-
-            grid.querySelectorAll('.col-inner, .product-small.box').forEach(function (el) {
-                el.style.setProperty('height', 'auto', 'important');
-                el.style.setProperty('min-height', '0', 'important');
-            });
-        }
-
-        function runEqualizeCleanup() {
-            document.querySelectorAll('.products').forEach(function (grid) {
-                disableThemeEqualize(grid);
-            });
-        }
-
-        runEqualizeCleanup();
-        window.addEventListener('load', runEqualizeCleanup, { passive: true });
-
-        cards.forEach(function (card) {
-            var productCard = card.closest('.product, .product-small');
-            if (productCard) {
-                productCard.classList.add('tvpg-has-loop-media');
-            }
-
-            var primaryMedia = card.querySelector('.tvpg-loop-primary-media');
-            var secondaryMedia = card.querySelector('.tvpg-loop-secondary-media');
-            if (primaryMedia) {
-                setImportantStyles(card, {
-                    display: 'block',
-                    position: 'relative',
-                    width: '100%'
-                });
-                setImportantStyles(primaryMedia, {
-                    opacity: '1',
-                    visibility: 'visible',
-                    display: 'block',
-                    position: 'relative',
-                    'z-index': '2'
-                });
-                primaryMedia.querySelectorAll('img').forEach(function (img) {
-                    setImportantStyles(img, {
-                        display: 'block',
-                        opacity: '1',
-                        visibility: 'visible',
-                        position: 'relative',
-                        'z-index': '2',
-                        width: '100%',
-                        height: 'auto'
-                    });
-                });
-            }
-            if (secondaryMedia) {
-                setImportantStyles(secondaryMedia, {
-                    opacity: '0',
-                    visibility: 'hidden',
-                    position: 'absolute',
-                    inset: '0',
-                    'z-index': '3'
-                });
-            }
-
-            var imageWrap = card.parentElement;
-            if (imageWrap) {
-                imageWrap.querySelectorAll('img.back-image').forEach(function (img) {
-                    if (img && img.parentNode) {
-                        img.parentNode.removeChild(img);
-                    }
-                });
-            }
+        document.addEventListener('visibilitychange', function () {
+            activeInstances().forEach(function (item) { item.handleVisibilityChange(); });
         });
 
-        var reducedMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-        var supportsDesktopHover = window.matchMedia && window.matchMedia('(hover: hover) and (pointer: fine)').matches;
-        var archiveCycleTimers = new WeakMap();
-        var archiveCycleState = new WeakMap();
-        var archiveFadeOutTimers = new WeakMap();
-        var archiveEnterTimers = new WeakMap();
-        var visibleImageCards = new Set();
-        var maxConcurrentImageCycles = 3;
-        var archiveEnterDelay = 220;
-        var archiveImageDelay = 4000;
-        if (typeof tvpgParams !== 'undefined' && tvpgParams.settings && tvpgParams.settings.image_delay) {
-            var parsedDelay = parseInt(tvpgParams.settings.image_delay, 10);
-            if (!isNaN(parsedDelay) && parsedDelay >= 1 && parsedDelay <= 30) {
-                archiveImageDelay = parsedDelay * 1000;
-            }
-        }
-
-        function getProviderFromIframe(iframe) {
-            var src = iframe.getAttribute('src') || '';
-            if (src.indexOf('youtube') !== -1) return 'youtube';
-            if (src.indexOf('vimeo') !== -1) return 'vimeo';
-            return null;
-        }
-
-        function playMedia(card) {
-            var mediaWrap = card.querySelector('.tvpg-loop-secondary-media');
-            var primaryMedia = card.querySelector('.tvpg-loop-primary-media');
-            if (!mediaWrap || !primaryMedia) return;
-
-            var pendingFadeOut = archiveFadeOutTimers.get(card);
-            if (pendingFadeOut) {
-                clearTimeout(pendingFadeOut);
-                archiveFadeOutTimers.delete(card);
-            }
-
-            card.classList.add('tvpg-loop-active');
-            var host = card.closest('.product-small, .product, li.product');
-            if (host) host.classList.add('tvpg-loop-active');
-            setImportantStyles(primaryMedia, {
-                opacity: '0',
-                visibility: 'hidden'
+        if (typeof jQuery !== 'undefined') {
+            jQuery(document).on('found_variation', function (event, variation) {
+                activeInstances().forEach(function (item) { item.handleVariationEvent(event, variation); });
             });
-            setImportantStyles(mediaWrap, {
-                opacity: '1',
-                visibility: 'visible'
+            jQuery(document).on('reset_image', 'form.variations_form', function (event) {
+                activeInstances().forEach(function (item) { item.handleResetEvent(event); });
             });
-            var video = mediaWrap.querySelector('video');
-            var iframe = mediaWrap.querySelector('iframe');
-
-            if (video) {
-                var p = video.play();
-                if (p && p.catch) p.catch(function () { });
-                return;
-            }
-
-            if (iframe && iframe.contentWindow) {
-                var provider = getProviderFromIframe(iframe);
-                if (provider === 'youtube') {
-                    iframe.contentWindow.postMessage('{"event":"command","func":"mute","args":[]}', 'https://www.youtube.com');
-                    iframe.contentWindow.postMessage('{"event":"command","func":"playVideo","args":[]}', 'https://www.youtube.com');
-                } else if (provider === 'vimeo') {
-                    iframe.contentWindow.postMessage('{"method":"setVolume", "value":0}', 'https://player.vimeo.com');
-                    iframe.contentWindow.postMessage('{"method":"play"}', 'https://player.vimeo.com');
-                }
-            }
         }
-
-        function pauseMedia(card) {
-            var mediaWrap = card.querySelector('.tvpg-loop-secondary-media');
-            var primaryMedia = card.querySelector('.tvpg-loop-primary-media');
-            if (!mediaWrap || !primaryMedia) return;
-
-            card.classList.remove('tvpg-loop-active');
-            var host = card.closest('.product-small, .product, li.product');
-            if (host) host.classList.remove('tvpg-loop-active');
-            setImportantStyles(primaryMedia, {
-                opacity: '1',
-                visibility: 'visible'
-            });
-            setImportantStyles(mediaWrap, {
-                opacity: '0',
-                visibility: 'visible'
-            });
-            var fadeOutTimer = setTimeout(function () {
-                if (!card.classList.contains('tvpg-loop-active')) {
-                    setImportantStyles(mediaWrap, {
-                        visibility: 'hidden'
-                    });
-                }
-                archiveFadeOutTimers.delete(card);
-            }, 380);
-            archiveFadeOutTimers.set(card, fadeOutTimer);
-            var video = mediaWrap.querySelector('video');
-            var iframe = mediaWrap.querySelector('iframe');
-
-            if (video) {
-                video.pause();
-                return;
-            }
-
-            if (iframe && iframe.contentWindow) {
-                var provider = getProviderFromIframe(iframe);
-                if (provider === 'youtube') {
-                    iframe.contentWindow.postMessage('{"event":"command","func":"pauseVideo","args":[]}', 'https://www.youtube.com');
-                } else if (provider === 'vimeo') {
-                    iframe.contentWindow.postMessage('{"method":"pause"}', 'https://player.vimeo.com');
-                }
-            }
-        }
-
-        function hasSecondaryVideoMedia(card) {
-            var mediaWrap = card.querySelector('.tvpg-loop-secondary-media');
-            if (!mediaWrap) return false;
-            return !!mediaWrap.querySelector('video, iframe');
-        }
-
-        function stopArchiveImageCycle(card) {
-            var timer = archiveCycleTimers.get(card);
-            if (timer) {
-                clearTimeout(timer);
-                archiveCycleTimers.delete(card);
-            }
-            archiveCycleState.delete(card);
-            pauseMedia(card);
-        }
-
-        function startArchiveImageCycle(card) {
-            if (archiveCycleTimers.get(card)) return;
-
-            archiveCycleState.set(card, false);
-            pauseMedia(card);
-
-            function tick() {
-                if (!document.body.contains(card)) {
-                    stopArchiveImageCycle(card);
-                    return;
-                }
-
-                var showSecondary = archiveCycleState.get(card);
-                if (showSecondary) {
-                    pauseMedia(card);
-                    archiveCycleState.set(card, false);
-                } else {
-                    playMedia(card);
-                    archiveCycleState.set(card, true);
-                }
-
-                archiveCycleTimers.set(card, setTimeout(tick, archiveImageDelay));
-            }
-
-            archiveCycleTimers.set(card, setTimeout(tick, archiveImageDelay));
-        }
-
-        function rebalanceArchiveImageCycles() {
-            var running = 0;
-            visibleImageCards.forEach(function (card) {
-                if (archiveCycleTimers.get(card)) {
-                    running++;
-                }
-            });
-
-            if (running > maxConcurrentImageCycles) {
-                var toStop = running - maxConcurrentImageCycles;
-                visibleImageCards.forEach(function (card) {
-                    if (toStop <= 0) return;
-                    if (archiveCycleTimers.get(card)) {
-                        stopArchiveImageCycle(card);
-                        toStop--;
-                    }
-                });
-                return;
-            }
-
-            if (running < maxConcurrentImageCycles) {
-                var capacity = maxConcurrentImageCycles - running;
-                visibleImageCards.forEach(function (card) {
-                    if (capacity <= 0) return;
-                    if (!archiveCycleTimers.get(card)) {
-                        startArchiveImageCycle(card);
-                        capacity--;
-                    }
-                });
-            }
-        }
-
-        function clearArchiveEnterTimer(card) {
-            var timer = archiveEnterTimers.get(card);
-            if (timer) {
-                clearTimeout(timer);
-                archiveEnterTimers.delete(card);
-            }
-        }
-
-        cards.forEach(function (card) {
-            var mediaWrap = card.querySelector('.tvpg-loop-secondary-media');
-            var primaryMedia = card.querySelector('.tvpg-loop-primary-media');
-            if (!mediaWrap || !primaryMedia) return;
-
-            var hoverTarget = card.closest('.product-small, .product, li.product') || card;
-            card.classList.remove('tvpg-loop-active');
-            hoverTarget.classList.remove('tvpg-loop-active');
-
-            hoverTarget.addEventListener('mouseenter', function () {
-                playMedia(card);
-            });
-
-            hoverTarget.addEventListener('mouseleave', function () {
-                pauseMedia(card);
-            });
-
-            if (!supportsDesktopHover && hasSecondaryVideoMedia(card)) {
-                hoverTarget.addEventListener('touchstart', function () {
-                    playMedia(card);
-                }, { passive: true });
-
-                hoverTarget.addEventListener('touchend', function () {
-                    // Keep current state; viewport observer controls pause/reset.
-                }, { passive: true });
-            }
-
-            pauseMedia(card);
-        });
-
-        if (reducedMotion || supportsDesktopHover || !('IntersectionObserver' in window)) return;
-
-        var observer = new IntersectionObserver(function (entries) {
-            entries.forEach(function (entry) {
-                if (entry.isIntersecting && entry.intersectionRatio >= 0.6) {
-                    if (hasSecondaryVideoMedia(entry.target)) {
-                        clearArchiveEnterTimer(entry.target);
-                        archiveEnterTimers.set(entry.target, setTimeout(function () {
-                            playMedia(entry.target);
-                            archiveEnterTimers.delete(entry.target);
-                        }, archiveEnterDelay));
-                    } else {
-                        visibleImageCards.add(entry.target);
-                        clearArchiveEnterTimer(entry.target);
-                        archiveEnterTimers.set(entry.target, setTimeout(function () {
-                            rebalanceArchiveImageCycles();
-                            archiveEnterTimers.delete(entry.target);
-                        }, archiveEnterDelay));
-                    }
-                } else {
-                    clearArchiveEnterTimer(entry.target);
-                    if (hasSecondaryVideoMedia(entry.target)) {
-                        pauseMedia(entry.target);
-                    } else {
-                        visibleImageCards.delete(entry.target);
-                        stopArchiveImageCycle(entry.target);
-                        rebalanceArchiveImageCycles();
-                    }
-                }
-            });
-        }, { threshold: [0, 0.6] });
-
-        cards.forEach(function (card) {
-            observer.observe(card);
-        });
     }
-
-    initArchiveMediaSwap();
 
     function initProductGallery(galleryWrapper) {
         var mainSliderEl = galleryWrapper.querySelector('.tvpg-main-slider');
@@ -536,11 +181,6 @@
     }
 
     // ── Video Playback Helpers ───────────────────────────────────────────────
-    // Specific origins for postMessage — never use '*' to prevent leaking
-    // commands to unrelated iframes on the same page.
-    var YT_ORIGIN = 'https://www.youtube.com';
-    var VM_ORIGIN = 'https://player.vimeo.com';
-
     function getIframeProvider(iframe) {
         var src = iframe.getAttribute('src') || '';
         if (src.indexOf('youtube') !== -1) return 'youtube';
@@ -678,7 +318,7 @@
         nextSlideAfterDelay(150);
     }
 
-    window.addEventListener('message', function (event) {
+    function handleProviderMessage(event) {
         if (event.origin === YT_ORIGIN) {
             var ytData = event.data;
             if (typeof ytData === 'string') {
@@ -707,7 +347,7 @@
                 onIframeVideoEnded(event.source);
             }
         }
-    });
+    }
 
     // ── Video Error Handling ──────────────────────────────────────────────────
     function attachVideoErrorHandler(container) {
@@ -934,7 +574,7 @@
     // ── Page Visibility API — pause when tab is hidden ──────────────────────
     var wasPlayingBeforeHidden = false;
 
-    document.addEventListener('visibilitychange', function () {
+    function handleVisibilityChange() {
         if (document.hidden) {
             // Remember if a video was actively playing so we can resume.
             var active = mainSlider ? mainSlider.slides[mainSlider.activeIndex] : null;
@@ -951,7 +591,7 @@
             }
             wasPlayingBeforeHidden = false;
         }
-    });
+    }
 
     // ── Thumbnail Video Autoplay ────────────────────────────────────────────
     // Explicit .play() as a safety net — the HTML autoplay attribute can be
@@ -1009,13 +649,20 @@
         if (!lightboxOverlay) return;
         document.removeEventListener('keydown', lightboxKeyHandler);
         lightboxOverlay.classList.remove('tvpg-lightbox--open');
-        lightboxOverlay.addEventListener('transitionend', function () {
+
+        var removed = false;
+        function removeOverlay() {
+            if (removed) return;
+            removed = true;
             if (lightboxOverlay && lightboxOverlay.parentNode) {
                 lightboxOverlay.parentNode.removeChild(lightboxOverlay);
             }
             lightboxOverlay = null;
             document.body.style.overflow = '';
-        }, { once: true });
+        }
+
+        lightboxOverlay.addEventListener('transitionend', removeOverlay, { once: true });
+        window.setTimeout(removeOverlay, 300);
     }
 
     function lightboxKeyHandler(e) {
@@ -1141,6 +788,8 @@
                 setExpectedVideoState(safeVideoHtml);
 
                 if (curVideoSlide) {
+					curVideoSlide.hidden = false;
+					if (curVideoThumbSlide) curVideoThumbSlide.hidden = false;
                     var container = curVideoSlide.querySelector('.woocommerce-product-gallery__image');
                     if (container) container.innerHTML = safeVideoHtml;
                     bindNativeVideoEnded(curVideoSlide);
@@ -1182,9 +831,14 @@
                 clearExpectedVideoState();
                 removeDynamicSlides();
 
-                // GHOST-BUG fix: use the clean restore helper instead of raw innerHTML.
                 var curStaticVideoSlide = curVideoSlide || mainSliderEl.querySelector('.swiper-slide.tvpg-video-slide');
-                if (curStaticVideoSlide && originalVideoHtml && !curStaticVideoSlide.classList.contains('tvpg-dynamic-slide')) {
+				if (variation.tvpg_has_video === false && curStaticVideoSlide && !curStaticVideoSlide.classList.contains('tvpg-dynamic-slide')) {
+					pauseVideo(curStaticVideoSlide);
+					curStaticVideoSlide.hidden = true;
+					if (curVideoThumbSlide) curVideoThumbSlide.hidden = true;
+					if (mainSlider) mainSlider.update();
+					if (thumbSlider) thumbSlider.update();
+				} else if (curStaticVideoSlide && originalVideoHtml && !curStaticVideoSlide.classList.contains('tvpg-dynamic-slide')) {
                     var c = curStaticVideoSlide.querySelector('.woocommerce-product-gallery__image');
                     restoreCleanVideo(c);
                     if (curVideoThumbSlide && originalVideoThumbHtml) {
@@ -1255,17 +909,15 @@
 
     function variationEventBelongsToGallery(event) {
         var productNode = galleryWrapper.closest('.product');
-        return !productNode || !event.target || productNode.contains(event.target);
+        return !!productNode && !!event.target && productNode.contains(event.target);
     }
 
-    // jQuery bridge — WC triggers jQuery events, so we listen via jQuery if available.
-    if (typeof jQuery !== 'undefined') {
-        jQuery(document).on('found_variation', function (event, variation) {
-            if (!variationEventBelongsToGallery(event)) return;
-            handleVariation(variation);
-        });
+    function handleVariationEvent(event, variation) {
+        if (!variationEventBelongsToGallery(event)) return;
+        handleVariation(variation);
+    }
 
-        jQuery(document).on('reset_image', 'form.variations_form', function (event) {
+    function handleResetEvent(event) {
             if (!variationEventBelongsToGallery(event)) return;
             // IMP-9 fix: re-query the image element from the live DOM
             // in case the theme replaced the original element.
@@ -1292,6 +944,8 @@
             // first, leaving a window where theme overwrites were unprotected.
             var curVideoSlide = mainSliderEl.querySelector('.swiper-slide.tvpg-video-slide');
             if (curVideoSlide && originalVideoHtml && !curVideoSlide.classList.contains('tvpg-dynamic-slide')) {
+				curVideoSlide.hidden = false;
+				if (videoThumbSlide) videoThumbSlide.hidden = false;
                 var c = curVideoSlide.querySelector('.woocommerce-product-gallery__image');
                 restoreCleanVideo(c);
                 // Re-arm the observer AFTER restoring — not before.
@@ -1301,8 +955,15 @@
             }
 
             if (mainSlider) mainSlider.slideTo(originalImage.index);
-        });
     }
+
+	registerGalleryInstance({
+		wrapper: galleryWrapper,
+		handleMessage: handleProviderMessage,
+		handleVisibilityChange: handleVisibilityChange,
+		handleVariationEvent: handleVariationEvent,
+		handleResetEvent: handleResetEvent
+	});
 
     }
 

@@ -105,9 +105,11 @@ class TVPG_Schema {
 			),
 			'description' => $product_desc ? $product_desc : $product_name,
 			'uploadDate'  => $upload_date,
-			'contentUrl'  => $embed_url,
 			'embedUrl'    => $embed_url,
 		);
+		if ( 'file' === $video_info['type'] ) {
+			$schema['contentUrl'] = $video_url;
+		}
 
 		if ( $thumbnail_url ) {
 			$schema['thumbnailUrl'] = $thumbnail_url;

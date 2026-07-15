@@ -245,9 +245,6 @@ class TVPG_Gallery_Renderer {
 						} elseif ( 'video' === $slide['type'] ) {
 							$video_info = TVPG_Video_Parser::get_video_info( $slide['url'] );
 							if ( $video_info && 'file' === $video_info['type'] ) {
-								// Self-hosted video: render an inline autoplay video
-								// so the thumbnail plays a live preview. Output directly
-								// to avoid wp_kses stripping boolean attributes.
 								$poster_url = '';
 								if ( ! empty( $slide['thumb_url'] ) ) {
 									$poster_url = $slide['thumb_url'];
@@ -257,11 +254,11 @@ class TVPG_Gallery_Renderer {
 										$poster_url = $poster_src;
 									}
 								}
-								echo '<video class="tvpg-thumb-video" autoplay muted loop playsinline preload="auto"';
 								if ( $poster_url ) {
-									echo ' poster="' . esc_url( $poster_url ) . '"';
+									echo '<img src="' . esc_url( $poster_url ) . '" alt="' . esc_attr__( 'Video Thumbnail', 'true-video-product-gallery' ) . '" loading="lazy" decoding="async">';
+								} else {
+									echo '<div class="tvpg-social-placeholder"></div>';
 								}
-								echo ' src="' . esc_url( $video_info['url'] ) . '" style="width:100%;height:100%;object-fit:cover;" tabindex="-1" aria-hidden="true"></video>';
 								echo '<span class="tvpg-thumb-play-icon"><svg viewBox="0 0 24 24" width="20" height="20" fill="#fff" style="filter:drop-shadow(0 1px 2px rgba(0,0,0,.5))"><path d="M8 5v14l11-7z"/></svg></span>';
 							} elseif ( ! empty( $slide['thumb_url'] ) ) {
 								echo '<img src="' . esc_url( $slide['thumb_url'] ) . '" alt="' . esc_attr__( 'Video Thumbnail', 'true-video-product-gallery' ) . '" style="width:100%;height:100%;object-fit:cover;">';

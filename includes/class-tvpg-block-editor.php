@@ -30,8 +30,10 @@ class TVPG_Block_Editor {
 	 */
 	public function __construct() {
 		add_action( 'init', array( $this, 'register_meta' ) );
-		add_action( 'init', array( $this, 'register_block' ) );
-		add_action( 'enqueue_block_editor_assets', array( $this, 'enqueue_editor_assets' ) );
+		if ( is_admin() ) {
+			add_action( 'init', array( $this, 'register_block' ) );
+			add_action( 'enqueue_block_editor_assets', array( $this, 'enqueue_editor_assets' ) );
+		}
 	}
 
 	/**
@@ -120,6 +122,7 @@ class TVPG_Block_Editor {
 		}
 
 		$suffix = ( defined( 'SCRIPT_DEBUG' ) && SCRIPT_DEBUG ) ? '' : '.min';
+		wp_enqueue_media();
 
 		wp_enqueue_script(
 			'tvpg-block-editor',

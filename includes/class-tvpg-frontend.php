@@ -33,6 +33,13 @@ class TVPG_Frontend {
 	private $assets_enqueued = false;
 
 	/**
+	 * Product IDs already wrapped by an archive image filter.
+	 *
+	 * @var array<int, bool>
+	 */
+	private $wrapped_loop_products = array();
+
+	/**
 	 * Determine if archive/category media swap is enabled.
 	 *
 	 * Constant TVPG_DISABLE_ARCHIVE_SWAP always wins as emergency override.
@@ -152,9 +159,26 @@ class TVPG_Frontend {
 			array(
 				'settings'    => $settings,
 				'needsSlider' => $needs_slider,
-				'archiveSwap' => $archive_swap,
 			)
 		);
+
+		if ( $archive_swap ) {
+			wp_enqueue_script(
+				'tvpg-archive',
+				TVPG_URL . 'assets/js/tvpg-archive' . $suffix . '.js',
+				array( 'tvpg-frontend' ),
+				TVPG_VERSION,
+				array(
+					'strategy'  => 'defer',
+					'in_footer' => true,
+				)
+			);
+			wp_localize_script(
+				'tvpg-archive',
+				'tvpgArchiveParams',
+				array( 'settings' => $settings )
+			);
+		}
 
 		// Dynamic CSS for video sizing.
 		$fit        = ( 'cover' === TVPG_Settings::get( 'video_sizing' ) ) ? 'cover' : 'contain';
@@ -241,6 +265,7 @@ class TVPG_Frontend {
 			return $html;
 		}
 
+		$this->wrapped_loop_products[ $product->get_id() ] = true;
 		return $this->wrap_loop_media_html( $html, $secondary_markup );
 	}
 
@@ -309,6 +334,7 @@ class TVPG_Frontend {
 			return $html;
 		}
 
+		$this->wrapped_loop_products[ $product->get_id() ] = true;
 		return $this->wrap_loop_media_html( $primary_html, $secondary_markup );
 	}
 
@@ -340,8 +366,11 @@ class TVPG_Frontend {
 			return;
 		}
 
-		global $product;
+		global $product; // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedVariableFound -- WooCommerce product global.
 		if ( ! $product || ! is_a( $product, 'WC_Product' ) ) {
+			return;
+		}
+		if ( isset( $this->wrapped_loop_products[ $product->get_id() ] ) ) {
 			return;
 		}
 
@@ -402,12 +431,12 @@ class TVPG_Frontend {
 
 		if ( 'youtube' === $info['type'] && ! empty( $info['id'] ) ) {
 			$src = 'https://www.youtube.com/embed/' . rawurlencode( $info['id'] ) . '?enablejsapi=1&playsinline=1&autoplay=0&mute=1&controls=0&rel=0&modestbranding=1';
-			return '<iframe class="tvpg-loop-secondary-video tvpg-loop-secondary-iframe" loading="lazy" src="' . esc_url( $src ) . '" allow="autoplay; encrypted-media; picture-in-picture" referrerpolicy="strict-origin-when-cross-origin" title="' . esc_attr__( 'Product preview video', 'true-video-product-gallery' ) . '"></iframe>';
+			return '<iframe class="tvpg-loop-secondary-video tvpg-loop-secondary-iframe" data-src="' . esc_url( $src ) . '" allow="autoplay; encrypted-media; picture-in-picture" referrerpolicy="strict-origin-when-cross-origin" title="' . esc_attr__( 'Product preview video', 'true-video-product-gallery' ) . '"></iframe>';
 		}
 
 		if ( 'vimeo' === $info['type'] && ! empty( $info['id'] ) ) {
 			$src = 'https://player.vimeo.com/video/' . rawurlencode( $info['id'] ) . '?autoplay=0&muted=1&title=0&byline=0&portrait=0';
-			return '<iframe class="tvpg-loop-secondary-video tvpg-loop-secondary-iframe" loading="lazy" src="' . esc_url( $src ) . '" allow="autoplay; fullscreen; picture-in-picture" referrerpolicy="strict-origin-when-cross-origin" title="' . esc_attr__( 'Product preview video', 'true-video-product-gallery' ) . '"></iframe>';
+			return '<iframe class="tvpg-loop-secondary-video tvpg-loop-secondary-iframe" data-src="' . esc_url( $src ) . '" allow="autoplay; fullscreen; picture-in-picture" referrerpolicy="strict-origin-when-cross-origin" title="' . esc_attr__( 'Product preview video', 'true-video-product-gallery' ) . '"></iframe>';
 		}
 
 		$gallery_ids = $product->get_gallery_image_ids();
@@ -441,11 +470,25 @@ class TVPG_Frontend {
 	 * @return array Modified URLs array.
 	 */
 	public function add_resource_hints( $urls, $relation_type ) {
-		if ( 'preconnect' === $relation_type && is_product() ) {
+		if ( 'preconnect' !== $relation_type || ! is_product() ) {
+			return $urls;
+		}
+
+		global $product;
+		if ( ! $product || ! is_a( $product, 'WC_Product' ) ) {
+			// phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedVariableFound -- WooCommerce product global.
+			$product = wc_get_product( get_the_ID() );
+		}
+		$video_url = $product ? get_post_meta( $product->get_id(), '_tvpg_video_url', true ) : '';
+		$info      = $video_url ? TVPG_Video_Parser::get_video_info( $video_url ) : false;
+
+		if ( $info && 'youtube' === $info['type'] ) {
 			$urls[] = array(
 				'href'        => 'https://img.youtube.com',
 				'crossorigin' => 'anonymous',
 			);
+		}
+		if ( $info && 'vimeo' === $info['type'] ) {
 			$urls[] = array(
 				'href'        => 'https://i.vimeocdn.com',
 				'crossorigin' => 'anonymous',
@@ -481,6 +524,9 @@ class TVPG_Frontend {
 	 * @return void
 	 */
 	public function intercept_flatsome_shortcodes() {
+		if ( 'flatsome' !== get_template() ) {
+			return;
+		}
 		if ( shortcode_exists( 'ux_product_gallery' ) ) {
 			remove_shortcode( 'ux_product_gallery' );
 			add_shortcode( 'ux_product_gallery', array( $this, 'render_shortcode' ) );
@@ -632,7 +678,8 @@ class TVPG_Frontend {
 			}
 		}
 
-		if ( ! empty( $video_url ) ) {
+		$data['tvpg_has_video'] = ! empty( $video_url );
+		if ( $data['tvpg_has_video'] ) {
 			$data['tvpg_video_html']       = wp_kses( TVPG_Video_Embed::get_video_html( $video_url, $thumb_url ), $allowed_html );
 			$data['tvpg_video_thumb_html'] = wp_kses( TVPG_Video_Embed::get_video_thumb_html( $video_url ), $allowed_html );
 		}
