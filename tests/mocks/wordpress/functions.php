@@ -201,6 +201,10 @@ function wp_get_attachment_url( $id ) {
 	return 'https://example.com/image.jpg';
 }
 
+function absint( $value ) {
+	return abs( (int) $value );
+}
+
 function get_current_user_id() {
 	return 1;
 }

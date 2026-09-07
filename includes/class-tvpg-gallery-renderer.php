@@ -47,9 +47,10 @@ class TVPG_Gallery_Renderer {
 			return;
 		}
 
-		$attachment_ids = $product->get_gallery_image_ids();
-		$main_image_id  = $product->get_image_id();
-		$video_url      = get_post_meta( $product->get_id(), '_tvpg_video_url', true );
+		$attachment_ids   = $product->get_gallery_image_ids();
+		$main_image_id    = $product->get_image_id();
+		$video_url        = get_post_meta( $product->get_id(), '_tvpg_video_url', true );
+		$core_media_items = self::get_core_media_items( $product );
 
 		if ( defined( 'TVPG_DEBUG' ) && TVPG_DEBUG ) {
 			echo '<!-- TVPG Debug: Product ID ' . esc_html( $product->get_id() ) . ' | Main Img: ' . esc_html( $main_image_id ) . ' | Count: ' . count( (array) $attachment_ids ) . ' -->';
@@ -58,15 +59,24 @@ class TVPG_Gallery_Renderer {
 		$settings    = TVPG_Settings::get_all();
 		$bg_position = $settings['video_position'];
 
-		$slides = self::assemble_slides( $main_image_id, $attachment_ids, $video_url, $bg_position, $product );
+		$slides = self::assemble_slides( $main_image_id, $attachment_ids, $video_url, $bg_position, $product, $core_media_items );
 
 		// Build conditional CSS classes for the wrapper.
-		$wrapper_classes = 'tvpg-gallery-wrapper woocommerce-product-gallery woocommerce-product-gallery--with-images images';
+		$columns         = (int) apply_filters( 'woocommerce_product_thumbnails_columns', 4 ); // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedHooknameFound -- Preserves the WooCommerce template API.
+		$wrapper_classes = array(
+			'tvpg-gallery-wrapper',
+			'woocommerce-product-gallery',
+			'woocommerce-product-gallery--with-images',
+			'woocommerce-product-gallery--columns-' . absint( $columns ),
+			'images',
+		);
 		if ( count( $slides ) <= 1 ) {
-			$wrapper_classes .= ' tvpg-single-slide';
+			$wrapper_classes[] = 'tvpg-single-slide';
 		}
+		$wrapper_classes = apply_filters( 'woocommerce_single_product_image_gallery_classes', $wrapper_classes ); // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedHooknameFound -- Preserves the WooCommerce template API.
+		$wrapper_classes = array_map( 'sanitize_html_class', (array) $wrapper_classes );
 		// BUG-H3 fix: wrapper open/close lives here, not split across sub-methods.
-		echo '<div class="' . esc_attr( $wrapper_classes ) . '" role="region" aria-label="' . esc_attr__( 'Product Gallery', 'true-video-product-gallery' ) . '" style="opacity: 1;">';
+		echo '<div class="' . esc_attr( implode( ' ', $wrapper_classes ) ) . '" data-columns="' . esc_attr( $columns ) . '" role="region" aria-label="' . esc_attr__( 'Product Gallery', 'true-video-product-gallery' ) . '" style="opacity: 1;">';
 		self::render_main_slider( $slides );
 		self::render_thumb_slider( $slides );
 		echo '</div>';
@@ -88,30 +98,89 @@ class TVPG_Gallery_Renderer {
 	}
 
 	/**
+	 * Get WooCommerce's ordered media gallery when its video gallery API exists.
+	 *
+	 * WooCommerce 11 introduced attachment videos in the core gallery. Using the
+	 * core ordering here prevents this replacement template from dropping them.
+	 * The fallback keeps the plugin compatible with its WooCommerce 8 minimum.
+	 *
+	 * @since 1.7.15
+	 * @param WC_Product $product Product object.
+	 * @return array|null Media items, or null when the API is unavailable.
+	 */
+	private static function get_core_media_items( $product ) {
+		$class_name = '\\Automattic\\WooCommerce\\Internal\\ProductGallery\\ProductMediaGallery';
+
+		if ( ! class_exists( $class_name ) || ! is_callable( array( $class_name, 'get_product_media_gallery_items_for_display' ) ) ) {
+			return null;
+		}
+
+		try {
+			return $class_name::get_product_media_gallery_items_for_display( $product );
+		} catch ( Throwable $error ) {
+			// The WooCommerce helper is internal, so fail safely if its contract changes.
+			return null;
+		}
+	}
+
+	/**
 	 * Assemble the ordered array of slides (images + video).
 	 *
 	 * @param int        $main_image_id  Main product image attachment ID.
 	 * @param array      $attachment_ids Gallery attachment IDs.
 	 * @param string     $video_url      Video URL (may be empty).
 	 * @param string     $position       Video position setting (first/second/last).
-	 * @param WC_Product $product    The product object.
+	 * @param WC_Product $product          The product object.
+	 * @param array|null $core_media_items Ordered WooCommerce media items when available.
 	 * @return array Ordered slide data.
 	 */
-	private static function assemble_slides( $main_image_id, $attachment_ids, $video_url, $position, $product ) {
+	private static function assemble_slides( $main_image_id, $attachment_ids, $video_url, $position, $product, $core_media_items = null ) {
 		$slides = array();
 
-		if ( $main_image_id ) {
-			$slides[] = array(
-				'type' => 'image',
-				'id'   => $main_image_id,
-			);
-		}
+		if ( is_array( $core_media_items ) ) {
+			foreach ( $core_media_items as $media_item ) {
+				$media_type  = isset( $media_item['media_type'] ) ? $media_item['media_type'] : '';
+				$source_type = isset( $media_item['source_type'] ) ? $media_item['source_type'] : 'attachment';
 
-		foreach ( $attachment_ids as $attachment_id ) {
-			$slides[] = array(
-				'type' => 'image',
-				'id'   => $attachment_id,
-			);
+				if ( 'placeholder' === $source_type && empty( $video_url ) ) {
+					$slides[] = array(
+						'type'           => 'image',
+						'id'             => 0,
+						'is_placeholder' => true,
+					);
+				} elseif ( 'image' === $media_type && ! empty( $media_item['id'] ) ) {
+					$slides[] = array(
+						'type' => 'image',
+						'id'   => absint( $media_item['id'] ),
+					);
+				} elseif ( 'video' === $media_type && ! empty( $media_item['id'] ) ) {
+					$poster_id        = ! empty( $media_item['poster_id'] ) ? absint( $media_item['poster_id'] ) : $main_image_id;
+					$native_video_url = wp_get_attachment_url( absint( $media_item['id'] ) );
+
+					if ( $native_video_url ) {
+						$slides[] = array(
+							'type'      => 'video',
+							'url'       => $native_video_url,
+							'thumb_id'  => $poster_id,
+							'thumb_url' => $poster_id ? wp_get_attachment_image_url( $poster_id, 'woocommerce_single' ) : '',
+						);
+					}
+				}
+			}
+		} else {
+			if ( $main_image_id ) {
+				$slides[] = array(
+					'type' => 'image',
+					'id'   => $main_image_id,
+				);
+			}
+
+			foreach ( $attachment_ids as $attachment_id ) {
+				$slides[] = array(
+					'type' => 'image',
+					'id'   => $attachment_id,
+				);
+			}
 		}
 
 		// Guarantee at least one slide for Swiper initialisation.
@@ -201,8 +270,8 @@ class TVPG_Gallery_Renderer {
 					<?php endforeach; ?>
 				</div>
 				<?php if ( count( $slides ) > 1 ) : ?>
-				<button class="swiper-button-next" aria-label="<?php esc_attr_e( 'Next slide', 'true-video-product-gallery' ); ?>"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M9 5l7 7-7 7"/></svg></button>
-				<button class="swiper-button-prev" aria-label="<?php esc_attr_e( 'Previous slide', 'true-video-product-gallery' ); ?>"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M15 19l-7-7 7-7"/></svg></button>
+				<button type="button" class="swiper-button-next" aria-label="<?php esc_attr_e( 'Next slide', 'true-video-product-gallery' ); ?>"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M9 5l7 7-7 7"/></svg></button>
+				<button type="button" class="swiper-button-prev" aria-label="<?php esc_attr_e( 'Previous slide', 'true-video-product-gallery' ); ?>"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M15 19l-7-7 7-7"/></svg></button>
 				<?php endif; ?>
 			</div>
 		<?php

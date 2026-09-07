@@ -3,6 +3,16 @@
 
 ## [Unreleased]
 
+## [1.7.15] - 2026-09-07
+### Compatibility
+- Updated the WooCommerce gallery template version header to 11.1.0.
+- Added support for WooCommerce 11 native product gallery videos.
+- Updated compatibility metadata for WordPress 7.1 and WooCommerce 11.1.
+
+### Fixed
+- Restored standard WooCommerce gallery class and column filters.
+- Preserved iframe referrer policies during output sanitization.
+
 ## [1.7.14] - 2026-06-27
 ### Fixed
 - Restored reliable single-product gallery rendering on standard WooCommerce themes.

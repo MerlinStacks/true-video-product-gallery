@@ -418,6 +418,7 @@ class TVPG_Video_Embed {
 				'class'           => array(),
 				'loading'         => array(),
 				'fetchpriority'   => array(),
+				'referrerpolicy'  => array(),
 				'tabindex'        => array(),
 				'aria-hidden'     => array(),
 			),

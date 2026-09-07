@@ -3,9 +3,9 @@ Contributors: sldevs
 Donate link: https://sldevs.com
 Tags: woocommerce, video, product gallery, youtube, vimeo, tiktok, instagram
 Requires at least: 6.4
-Tested up to: 6.8
+Tested up to: 7.1
 Requires PHP: 8.0
-Stable tag: 1.7.14
+Stable tag: 1.7.15
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -70,6 +70,13 @@ Yes, this plugin requires WooCommerce to be installed and active.
 4. Global settings page with preload options
 
 == Changelog ==
+
+= 1.7.15 =
+* COMPATIBILITY: Updated template metadata for WooCommerce 11.1.0
+* COMPATIBILITY: Preserve WooCommerce 11 native product gallery videos in the TVPG gallery
+* COMPATIBILITY: Updated tested versions for WordPress 7.1 and WooCommerce 11.1
+* IMPROVED: Restored standard WooCommerce gallery class and column filters
+* FIX: Preserve iframe referrer policies during output sanitization
 
 = 1.7.14 =
 * FIX: Restored reliable single-product gallery rendering on standard WooCommerce themes

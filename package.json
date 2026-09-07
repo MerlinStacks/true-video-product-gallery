@@ -1,6 +1,6 @@
 {
   "name": "true-video-product-gallery",
-  "version": "1.7.14",
+  "version": "1.7.15",
   "private": true,
   "description": "Build tools for True Video Product Gallery assets",
   "scripts": {

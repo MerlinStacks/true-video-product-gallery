@@ -7,6 +7,7 @@
  *
  * @package TVPG
  * @since   1.0.0
+ * @version 11.1.0
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
