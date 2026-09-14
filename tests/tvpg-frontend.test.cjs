@@ -9,7 +9,7 @@ const { join } = require('node:path');
 const { JSDOM } = require('jsdom');
 const source = readFileSync(join(__dirname, '../assets/js/tvpg-frontend.js'), 'utf8');
 
-function setup(t, { reduced = false, single = false, videoFirst = false, fallback = false } = {}) {
+function setup(t, { reduced = false, single = false, videoFirst = false, fallback = false, missingSwiper = false, beforeInit } = {}) {
     const imageSlide = '<div class="swiper-slide"><a href="original-full.jpg"><img src="original.jpg" srcset="original.jpg 800w" sizes="80vw" alt="Original"></a></div>';
     const videoSlide = '<div class="swiper-slide tvpg-video-slide"><div class="woocommerce-product-gallery__image"><video src="original.mp4" preload="none"></video></div></div>';
     const thumb = '<div class="swiper-slide"><img src="thumb.jpg" srcset="thumb.jpg 100w" sizes="100px" alt="Original thumb"></div>';
@@ -38,6 +38,7 @@ function setup(t, { reduced = false, single = false, videoFirst = false, fallbac
     class Slider {
         constructor(el, params) {
             this.el = el;
+            el.swiper = this;
             this.params = params;
             this.activeIndex = 0;
             this.events = {};
@@ -60,12 +61,17 @@ function setup(t, { reduced = false, single = false, videoFirst = false, fallbac
     const themeSwiper = fallback ? Slider : function () { throw new Error('Theme constructor must not be used'); };
     window.Swiper = themeSwiper;
     if (!fallback) window.TVPGSwiper = Slider;
+    if (missingSwiper) {
+        delete window.Swiper;
+        delete window.TVPGSwiper;
+    }
     window.tvpgParams = { needsSlider: !single, settings: { autoplay: true, mute_autoplay: true, gallery_autoscroll: true, enable_lightbox: true, transition_effect: 'fade' } };
+    if (beforeInit) beforeInit(window);
     window.eval(source);
     const wrapper = document.querySelector('.tvpg-gallery-wrapper');
     const main = instances.find(item => item.el.classList.contains('tvpg-main-slider'));
     return {
-        window, document, wrapper, main, timers, motion, themeSwiper,
+        window, document, wrapper, main, timers, motion, themeSwiper, Slider, instances,
         key(target, key, shiftKey = false) { const event = new window.KeyboardEvent('keydown', { key, shiftKey, bubbles: true, cancelable: true }); target.dispatchEvent(event); return event; },
         flushFrames() { while (frames.length) frames.splice(0).forEach(fn => fn()); },
         runTimers(delay) { [...timers].filter(([, item]) => item.delay === delay).forEach(([id, item]) => { timers.delete(id); item.fn(); }); },
@@ -80,6 +86,84 @@ test('plugin constructor wins; compatible legacy global still initializes', t =>
     assert.equal(app.window.Swiper, app.themeSwiper);
     assert.equal(app.main.params.effect, 'fade');
     assert.ok(setup(t, { fallback: true }).main);
+});
+
+test('missing Swiper leaves setup untouched; retry emits readiness exactly once after setup', t => {
+    let ready = 0;
+    const app = setup(t, { missingSwiper: true });
+    const el = app.wrapper.querySelector('.tvpg-main-slider');
+    const originalMarkup = app.wrapper.outerHTML;
+    const retry = () => app.document.dispatchEvent(new app.window.Event('tvpg-init-gallery'));
+    app.document.addEventListener('tvpg-gallery-ready', event => {
+        ready++;
+        assert.equal(event.target, app.wrapper);
+        assert.ok(event instanceof app.window.CustomEvent);
+        assert.equal(el.__tvpgInitialized, true);
+        assert.equal(app.wrapper.querySelectorAll('.tvpg-autoscroll-toggle').length, 1);
+        // Synchronous handoff exercises slide handlers and the late lightbox setup.
+        const slider = el.swiper;
+        slider.appendSlide('<div class="swiper-slide oc-live-preview-slide"><img src="preview.jpg"></div>');
+        slider.slideTo(2);
+        slider.slides[2].querySelector('img').click();
+        assert.ok(app.document.querySelector('.tvpg-lightbox'));
+        retry();
+    });
+    retry();
+    assert.equal(ready, 0);
+    assert.equal(el.__tvpgInitialized, undefined);
+    assert.equal(app.wrapper.outerHTML, originalMarkup);
+    assert.equal(app.timers.size, 0);
+    assert.equal(app.motion.change, undefined);
+    assert.equal(app.window.__tvpg_loaded, undefined);
+    assert.equal(app.document.querySelector('video').plays, undefined);
+    app.window.TVPGSwiper = app.Slider;
+    retry();
+    retry();
+    assert.equal(ready, 1);
+    assert.equal(app.instances.length, 2);
+    assert.equal(el.swiper.activeIndex, 2);
+    assert.equal(app.wrapper.querySelectorAll('.tvpg-autoscroll-toggle').length, 1);
+    app.key(app.document.activeElement, 'Escape');
+    assert.equal(app.document.querySelector('.tvpg-lightbox'), null);
+});
+
+test('static gallery emits bubbling readiness once without Swiper', t => {
+    let ready = 0;
+    const app = setup(t, { single: true, missingSwiper: true, beforeInit(window) {
+        window.document.addEventListener('tvpg-gallery-ready', event => {
+            ready++;
+            const el = event.target.querySelector('.tvpg-main-slider');
+            assert.equal(el.__tvpgInitialized, true);
+            assert.equal(el.swiper, undefined);
+            assert.equal(el.querySelector('video').playing, true);
+        });
+    } });
+    app.document.dispatchEvent(new app.window.Event('tvpg-init-gallery'));
+    assert.equal(ready, 1);
+});
+
+test('preview selection pauses private autoscroll and ordinary slides resume it', t => {
+    const app = setup(t);
+    const scheduled = () => [...app.timers.values()].some(timer => timer.delay === 4000);
+    app.main.appendSlide('<div class="swiper-slide oc-live-preview-slide"></div>');
+    app.main.slideTo(2);
+    assert.equal(scheduled(), false);
+    app.runTimers(4000);
+    assert.equal(app.main.activeIndex, 2);
+    app.visibility(true);
+    app.visibility(false);
+    assert.equal(scheduled(), false);
+    app.main.slideTo(0);
+    assert.equal(scheduled(), true);
+    app.runTimers(4000);
+    assert.equal(app.main.activeIndex, 1);
+    // A preview becoming active without slideChange must also stop a pending timer.
+    app.main.slideTo(0);
+    app.main.activeIndex = 2;
+    app.runTimers(4000);
+    assert.equal(app.main.activeIndex, 2);
+    app.main.slideTo(0);
+    assert.equal(scheduled(), true);
 });
 
 test('only active native slide plays, including no-slider galleries', t => {

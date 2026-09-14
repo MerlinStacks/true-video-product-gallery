@@ -38,6 +38,8 @@ Archive cards inserted into an existing product grid are initialized automatical
 ### 4. Personalization Plugins (e.g. Zakeke, PPOM, Personalise It)
 *   **Status**: **Compatible**.
 *   We have added the standard `.woocommerce-product-gallery` and `.woocommerce-product-gallery__image` classes to our structure. These plugins should correctly identify the active slide image and overlay their preview canvas on top of it.
+*   TVPG dispatches a bubbling `tvpg-gallery-ready` CustomEvent on `.tvpg-gallery-wrapper` once all initialization is complete (including static galleries). Integrations can select their pending preview in this listener. If a required Swiper constructor is unavailable, no readiness event fires; dispatch `tvpg-init-gallery` after loading Swiper to retry. Repeated initialization requests do not emit readiness again.
+*   PersonaliseIt’s active `.oc-live-preview-slide` pauses TVPG’s private autoscroll timer. Selecting an ordinary slide resumes normal scheduling, subject to the existing pause and reduced-motion settings; stopping Swiper autoplay alone does not control TVPG autoscroll.
 
 ### 5. Zoom & Lightbox Plugins
 *   **Note**: This plugin **disables** the default WooCommerce Zoom and Lightbox.

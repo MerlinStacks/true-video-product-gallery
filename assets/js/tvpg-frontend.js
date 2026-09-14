@@ -59,7 +59,11 @@
         var mainSliderEl = galleryWrapper.querySelector('.tvpg-main-slider');
         if (!mainSliderEl || mainSliderEl.__tvpgInitialized) return;
 
-        mainSliderEl.__tvpgInitialized = true;
+        // Leave delayed slider galleries untouched so tvpg-init-gallery can retry.
+        var needsSlider = (typeof tvpgParams !== 'undefined') ? toBool(tvpgParams.needsSlider) : true;
+        var GallerySwiper = window.TVPGSwiper || window.Swiper;
+        if (needsSlider && typeof GallerySwiper !== 'function') return;
+
         var thumbSliderEl = galleryWrapper.querySelector('.tvpg-thumb-slider');
 
     // BUG-H1 fix: sanitise HTML before innerHTML to prevent XSS from tampered responses.
@@ -140,14 +144,12 @@
     };
     if (settings.image_delay < 1) settings.image_delay = 1;
     if (settings.image_delay > 30) settings.image_delay = 30;
-    var needsSlider = (typeof tvpgParams !== 'undefined') ? toBool(tvpgParams.needsSlider) : true;
 
     // ── Swiper Init ──────────────────────────────────────────────────────────
     var thumbSlider = null;
     var mainSlider = null;
 
-    var GallerySwiper = window.TVPGSwiper || window.Swiper;
-    if (needsSlider && typeof GallerySwiper === 'function') {
+    if (needsSlider) {
         mainSliderEl.setAttribute('tabindex', '0');
         if (galleryWrapper) galleryWrapper.classList.add('tvpg-swiper-initialised');
 
@@ -277,6 +279,9 @@
     var autoScrollTimer = null;
 
     function canAutoAdvance() {
+        // PersonaliseIt previews must stay selected, including when a timer is already pending.
+        var active = getActiveSlide();
+        if (active && active.classList.contains('oc-live-preview-slide')) return false;
         return mainSlider && settings.gallery_autoscroll && !reducedMotion && !userPaused && !focusPaused && !windowPaused && !document.hidden && !lightboxOverlay && galleryWrapper.isConnected;
     }
 
@@ -1195,6 +1200,9 @@
 		handleResetEvent: handleResetEvent
 	});
 
+        // Integrations may synchronously select a preview; all setup must be complete first.
+        mainSliderEl.__tvpgInitialized = true;
+        galleryWrapper.dispatchEvent(new CustomEvent('tvpg-gallery-ready', { bubbles: true }));
     }
 
     function initAllProductGalleries() {
