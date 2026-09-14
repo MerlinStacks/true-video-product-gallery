@@ -38,6 +38,12 @@
         document.addEventListener('visibilitychange', function () {
             activeInstances().forEach(function (item) { item.handleVisibilityChange(); });
         });
+        window.addEventListener('blur', function () {
+            activeInstances().forEach(function (item) { item.handleWindowFocus(false); });
+        });
+        window.addEventListener('focus', function () {
+            activeInstances().forEach(function (item) { item.handleWindowFocus(true); });
+        });
 
         if (typeof jQuery !== 'undefined') {
             jQuery(document).on('found_variation', function (event, variation) {
@@ -111,7 +117,13 @@
     // Normalize settings — wp_localize_script casts booleans to "1"/"" strings.
     function toBool(val) { return val === true || val === '1' || val === 1; }
 
-    var rawSettings = (typeof tvpgParams !== 'undefined') ? tvpgParams.settings : {};
+    var rawSettings = (typeof tvpgParams !== 'undefined' && tvpgParams.settings) || {};
+    var motionQuery = window.matchMedia ? window.matchMedia('(prefers-reduced-motion: reduce)') : null;
+    var reducedMotion = !!(motionQuery && motionQuery.matches);
+    var userPaused = false;
+    var focusPaused = galleryWrapper.contains(document.activeElement);
+    var windowPaused = false;
+    var pauseControl = null;
     var settings = {
         autoplay: toBool(rawSettings.autoplay),
         gallery_autoscroll: toBool(rawSettings.gallery_autoscroll),
@@ -134,14 +146,17 @@
     var thumbSlider = null;
     var mainSlider = null;
 
-    if (needsSlider && typeof Swiper !== 'undefined') {
+    var GallerySwiper = window.TVPGSwiper || window.Swiper;
+    if (needsSlider && typeof GallerySwiper === 'function') {
+        mainSliderEl.setAttribute('tabindex', '0');
         if (galleryWrapper) galleryWrapper.classList.add('tvpg-swiper-initialised');
 
         if (thumbSliderEl) {
-            thumbSlider = new Swiper(thumbSliderEl, {
+            thumbSlider = new GallerySwiper(thumbSliderEl, {
+            speed: reducedMotion ? 0 : 300,
             spaceBetween: 10,
             slidesPerView: 4,
-            freeMode: true,
+            freeMode: { enabled: true, momentum: !reducedMotion },
             watchSlidesProgress: true,
             breakpoints: {
                 320: { slidesPerView: 3 },
@@ -155,25 +170,26 @@
         var mainSliderConfig = {
             spaceBetween: 10,
             effect: requestedEffect,
-            speed: 400,
+            speed: reducedMotion ? 0 : 400,
             navigation: {
                 nextEl: galleryWrapper.querySelector('.swiper-button-next'),
                 prevEl: galleryWrapper.querySelector('.swiper-button-prev'),
             },
             thumbs: thumbSlider ? { swiper: thumbSlider } : undefined,
             // IMP-08: keyboard navigation.
-            keyboard: { enabled: true, onlyInViewport: true },
+            // Handle keys locally, rather than hijacking arrows elsewhere on the page.
+            keyboard: { enabled: false },
             // IMP-09: touch events target wrapper to avoid video capture.
             touchEventsTarget: 'wrapper',
             fadeEffect: { crossFade: true },
         };
 
         try {
-            mainSlider = new Swiper(mainSliderEl, mainSliderConfig);
+            mainSlider = new GallerySwiper(mainSliderEl, mainSliderConfig);
         } catch (err) {
             if (requestedEffect === 'fade') {
                 mainSliderConfig.effect = 'slide';
-                mainSlider = new Swiper(mainSliderEl, mainSliderConfig);
+                mainSlider = new GallerySwiper(mainSliderEl, mainSliderConfig);
             } else {
                 throw err;
             }
@@ -181,6 +197,10 @@
     }
 
     // ── Video Playback Helpers ───────────────────────────────────────────────
+    function getActiveSlide() {
+        return mainSlider ? mainSlider.slides[mainSlider.activeIndex] : mainSliderEl.querySelector('.swiper-slide:not([hidden])');
+    }
+
     function getIframeProvider(iframe) {
         var src = iframe.getAttribute('src') || '';
         if (src.indexOf('youtube') !== -1) return 'youtube';
@@ -189,7 +209,7 @@
     }
 
     function playVideo(slide) {
-        if (!settings.autoplay) return;
+        if (!slide || slide !== getActiveSlide() || slide.hidden || !settings.autoplay || reducedMotion || document.hidden || windowPaused || lightboxOverlay) return;
 
         var video = slide.querySelector('video');
         var iframe = slide.querySelector('iframe');
@@ -236,8 +256,29 @@
         mainSliderEl.querySelectorAll('.swiper-slide').forEach(function (s) { pauseVideo(s); });
     }
 
+    function refreshGallery() {
+        if (mainSlider) mainSlider.update();
+        if (thumbSlider) thumbSlider.update();
+        var active = getActiveSlide();
+        mainSliderEl.querySelectorAll('.swiper-slide').forEach(function (slide) {
+            var video = slide.querySelector('video');
+            if (video) video.removeAttribute('autoplay');
+            if (slide !== active || slide.hidden || reducedMotion || document.hidden) pauseVideo(slide);
+        });
+        bindAllNativeVideoEnded();
+        attachVideoErrorHandler(mainSliderEl);
+        syncGalleryAccessibility();
+        syncThumbVideos();
+        playVideo(active);
+        scheduleAutoAdvanceForActiveSlide();
+    }
+
     // ── Auto Scroll State ───────────────────────────────────────────────────
     var autoScrollTimer = null;
+
+    function canAutoAdvance() {
+        return mainSlider && settings.gallery_autoscroll && !reducedMotion && !userPaused && !focusPaused && !windowPaused && !document.hidden && !lightboxOverlay && galleryWrapper.isConnected;
+    }
 
     function clearAutoScrollTimer() {
         if (autoScrollTimer) {
@@ -247,16 +288,17 @@
     }
 
     function nextSlideAfterDelay(delayMs) {
-        if (!mainSlider || !settings.gallery_autoscroll) return;
         clearAutoScrollTimer();
+        if (!canAutoAdvance()) return;
         autoScrollTimer = setTimeout(function () {
-            if (!mainSlider || !settings.gallery_autoscroll) return;
+            if (!canAutoAdvance()) return;
             var slideCount = mainSlider.slides ? mainSlider.slides.length : 0;
             if (slideCount < 2) return;
 
-            var nextIndex = mainSlider.activeIndex + 1;
-            if (nextIndex >= slideCount) {
-                nextIndex = 0;
+            var nextIndex = mainSlider.activeIndex;
+            for (var step = 0; step < slideCount; step++) {
+                nextIndex = (nextIndex + 1) % slideCount;
+                if (!mainSlider.slides[nextIndex].hidden) break;
             }
 
             mainSlider.slideTo(nextIndex);
@@ -271,7 +313,7 @@
     }
 
     function scheduleAutoAdvanceForActiveSlide() {
-        if (!mainSlider || !settings.gallery_autoscroll) {
+        if (!canAutoAdvance()) {
             clearAutoScrollTimer();
             return;
         }
@@ -290,8 +332,8 @@
         // Video slide: do nothing here; advance happens when video ends.
     }
 
-    function onNativeVideoEnded() {
-        if (!mainSlider || !settings.gallery_autoscroll) return;
+    function onNativeVideoEnded(event) {
+        if (!canAutoAdvance() || !getActiveSlide() || !getActiveSlide().contains(event.target)) return;
         nextSlideAfterDelay(150);
     }
 
@@ -307,6 +349,69 @@
         mainSliderEl.querySelectorAll('.swiper-slide.tvpg-video-slide').forEach(function (slide) {
             bindNativeVideoEnded(slide);
         });
+    }
+
+    function updatePauseControl() {
+        if (!pauseControl) return;
+        pauseControl.textContent = reducedMotion ? 'Gallery motion disabled' : (userPaused ? 'Resume slideshow' : 'Pause slideshow');
+        pauseControl.disabled = reducedMotion;
+    }
+
+    function syncThumbVideos() {
+        if (!thumbSliderEl) return;
+        thumbSliderEl.querySelectorAll('video').forEach(function (video) {
+            video.removeAttribute('autoplay');
+            if (reducedMotion || document.hidden || windowPaused || focusPaused || userPaused || lightboxOverlay || video.closest('[hidden]')) {
+                video.pause();
+            } else {
+                video.muted = true;
+                var promise = video.play();
+                if (promise) promise.catch(function () { /* browser policy */ });
+            }
+        });
+    }
+
+    if (mainSlider && settings.gallery_autoscroll) {
+        pauseControl = document.createElement('button');
+        pauseControl.type = 'button';
+        pauseControl.className = 'tvpg-autoscroll-toggle';
+        updatePauseControl();
+        galleryWrapper.appendChild(pauseControl);
+        pauseControl.addEventListener('click', function () {
+            userPaused = !userPaused;
+            updatePauseControl();
+            syncThumbVideos();
+            scheduleAutoAdvanceForActiveSlide();
+        });
+    }
+    galleryWrapper.addEventListener('focusin', function () {
+        focusPaused = true;
+        clearAutoScrollTimer();
+        syncThumbVideos();
+    });
+    galleryWrapper.addEventListener('focusout', function () {
+        setTimeout(function () {
+            focusPaused = galleryWrapper.contains(document.activeElement);
+            syncThumbVideos();
+            scheduleAutoAdvanceForActiveSlide();
+        }, 0);
+    });
+    if (motionQuery) {
+        var onMotionChange = function () {
+            reducedMotion = motionQuery.matches;
+            if (mainSlider) mainSlider.params.speed = reducedMotion ? 0 : 400;
+            if (thumbSlider) {
+                thumbSlider.params.speed = reducedMotion ? 0 : 300;
+                thumbSlider.params.freeMode.momentum = !reducedMotion;
+            }
+            if (lightboxOverlay) lightboxOverlay.style.transition = reducedMotion ? 'none' : '';
+            if (reducedMotion) pauseAllVideos();
+            syncThumbVideos();
+            updatePauseControl();
+            scheduleAutoAdvanceForActiveSlide();
+        };
+        if (motionQuery.addEventListener) motionQuery.addEventListener('change', onMotionChange);
+        else if (motionQuery.addListener) motionQuery.addListener(onMotionChange);
     }
 
     function onIframeVideoEnded(iframeWindow) {
@@ -419,6 +524,13 @@
         // IMP-11: Hide spinner when iframe finishes loading.
         iframe.addEventListener('load', function () {
             if (spinner.parentNode) spinner.parentNode.removeChild(spinner);
+            var slide = facade.closest('.swiper-slide');
+            if (!slide || !mainSliderEl.contains(slide)) return;
+            if (slide !== getActiveSlide() || document.hidden || lightboxOverlay) pauseVideo(slide);
+            else playVideo(slide);
+            if (provider === 'youtube' && iframe.contentWindow) {
+                iframe.contentWindow.postMessage('{"event":"listening","id":1,"channel":"widget"}', YT_ORIGIN);
+            }
         });
 
         attachIframeTimeout(iframe, facade);
@@ -521,6 +633,38 @@
     });
 
     // ── Slide Change Events ──────────────────────────────────────────────────
+    function syncGalleryAccessibility() {
+        var active = getActiveSlide();
+        if (thumbSliderEl) {
+            thumbSliderEl.querySelectorAll('.swiper-slide').forEach(function (thumb, index) {
+                thumb.setAttribute('role', 'button');
+                thumb.setAttribute('tabindex', thumb.hidden ? '-1' : '0');
+                if (!thumb.hasAttribute('aria-label')) thumb.setAttribute('aria-label', 'Show ' + (thumb.classList.contains('tvpg-video-thumb-slide') ? 'video' : 'image') + ', slide ' + (index + 1));
+                var slides = mainSliderEl.querySelectorAll('.swiper-slide');
+                thumb.setAttribute('aria-pressed', String(slides[index] === active));
+            });
+        }
+        if (settings.enable_lightbox) {
+            mainSliderEl.querySelectorAll('.swiper-slide:not(.tvpg-video-slide) img').forEach(function (img) {
+                var trigger = img.closest('a') || img;
+                trigger.setAttribute('role', 'button');
+                trigger.setAttribute('tabindex', img.closest('.swiper-slide') === active ? '0' : '-1');
+                trigger.setAttribute('aria-haspopup', 'dialog');
+                trigger.setAttribute('aria-label', 'Zoom image' + (img.alt ? ': ' + img.alt : ''));
+            });
+        }
+    }
+
+    if (thumbSliderEl) {
+        thumbSliderEl.addEventListener('keydown', function (event) {
+            if (event.key !== 'Enter' && event.key !== ' ' && event.key !== 'Spacebar') return;
+            var thumb = event.target.closest('.swiper-slide');
+            if (!thumb || thumb.hidden || !mainSlider) return;
+            event.preventDefault();
+            mainSlider.slideTo(Array.from(thumbSliderEl.querySelectorAll('.swiper-slide')).indexOf(thumb));
+        });
+    }
+
     if (mainSlider) {
         mainSlider.on('slideChange', function () {
             clearAutoScrollTimer();
@@ -530,26 +674,28 @@
                 playVideo(active);
             }
             scheduleAutoAdvanceForActiveSlide();
+            syncGalleryAccessibility();
         });
 
-        // Play initial video if active.
-        var initialSlide = mainSlider.slides[mainSlider.activeIndex];
-        if (initialSlide && initialSlide.classList.contains('tvpg-video-slide')) {
-            playVideo(initialSlide);
-        }
-
-        bindAllNativeVideoEnded();
-        scheduleAutoAdvanceForActiveSlide();
     }
+    refreshGallery();
 
     // ── Keyboard: Spacebar Play/Pause ─────────────────────────────────────
     mainSliderEl.addEventListener('keydown', function (e) {
+        if (e.defaultPrevented || e.target.closest('input, textarea, select, video, [contenteditable]')) return;
+        if (mainSlider && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) {
+            e.preventDefault();
+            if ((e.key === 'ArrowRight') !== !!mainSlider.rtlTranslate) mainSlider.slideNext();
+            else mainSlider.slidePrev();
+            return;
+        }
+        if (e.target.closest('a, button, [role="button"]')) return;
         if (e.key !== ' ' && e.key !== 'Spacebar') return;
         // Don't hijack spacebar when focus is on a form element.
         var tag = document.activeElement ? document.activeElement.tagName : '';
         if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || tag === 'BUTTON') return;
 
-        var active = mainSlider ? mainSlider.slides[mainSlider.activeIndex] : null;
+        var active = getActiveSlide();
         if (!active || !active.classList.contains('tvpg-video-slide')) return;
 
         e.preventDefault();
@@ -572,46 +718,58 @@
     });
 
     // ── Page Visibility API — pause when tab is hidden ──────────────────────
-    var wasPlayingBeforeHidden = false;
+    var playingSlideBeforeHidden = null;
+
+    function resumeVisibleVideo() {
+        if (document.hidden || windowPaused) return;
+        if (playingSlideBeforeHidden === getActiveSlide()) playVideo(playingSlideBeforeHidden);
+        playingSlideBeforeHidden = null;
+    }
 
     function handleVisibilityChange() {
+        clearAutoScrollTimer();
+        syncThumbVideos();
         if (document.hidden) {
             // Remember if a video was actively playing so we can resume.
-            var active = mainSlider ? mainSlider.slides[mainSlider.activeIndex] : null;
+            var active = getActiveSlide();
+            playingSlideBeforeHidden = null;
             if (active && active.classList.contains('tvpg-video-slide')) {
                 var vid = active.querySelector('video');
                 var ifr = active.querySelector('iframe');
-                wasPlayingBeforeHidden = !!(vid && !vid.paused) || !!ifr;
+                if ((vid && !vid.paused) || ifr) playingSlideBeforeHidden = active;
             }
             pauseAllVideos();
-        } else if (wasPlayingBeforeHidden && settings.autoplay) {
-            var active = mainSlider ? mainSlider.slides[mainSlider.activeIndex] : null;
-            if (active && active.classList.contains('tvpg-video-slide')) {
-                playVideo(active);
-            }
-            wasPlayingBeforeHidden = false;
+        } else {
+            resumeVisibleVideo();
         }
+        scheduleAutoAdvanceForActiveSlide();
+    }
+
+    function handleWindowFocus(focused) {
+        windowPaused = !focused;
+        if (focused) resumeVisibleVideo();
+        syncThumbVideos();
+        scheduleAutoAdvanceForActiveSlide();
     }
 
     // ── Thumbnail Video Autoplay ────────────────────────────────────────────
     // Explicit .play() as a safety net — the HTML autoplay attribute can be
     // ignored by some browsers/policies even when the video is muted.
-    var thumbVideo = galleryWrapper.querySelector('.tvpg-thumb-slider .tvpg-thumb-video');
-    if (thumbVideo) {
-        // Ensure the video stays muted (required for autoplay policy).
-        thumbVideo.muted = true;
-        var tp = thumbVideo.play();
-        if (tp !== undefined) tp.catch(function () { /* browser blocked */ });
-    }
+    syncThumbVideos();
 
 
     // ── Lightweight Image Lightbox ─────────────────────────────────────────
     // Replaces the WooCommerce zoom/lightbox that we disable. Only triggers
     // on image slides, never on video slides.
     var lightboxOverlay = null;
+    var lightboxTrigger = null;
+    var previousBodyOverflow = '';
+    var lightboxBackground = [];
 
-    function openLightbox(imgSrc, imgAlt) {
+    function openLightbox(imgSrc, imgAlt, trigger) {
         if (lightboxOverlay) return;
+        lightboxTrigger = trigger || document.activeElement;
+        previousBodyOverflow = document.body.style.overflow;
         // SECURITY: sanitise src to prevent javascript: URLs in lightbox.
         var safeSrc = imgSrc ? String(imgSrc).replace(/[\x00-\x1F\x7F]/g, '') : '';
         if (/^(javascript|data|vbscript):/i.test(safeSrc)) {
@@ -620,19 +778,32 @@
         lightboxOverlay = document.createElement('div');
         lightboxOverlay.className = 'tvpg-lightbox';
         lightboxOverlay.setAttribute('role', 'dialog');
+        lightboxOverlay.setAttribute('aria-modal', 'true');
+        lightboxOverlay.setAttribute('tabindex', '-1');
         lightboxOverlay.setAttribute('aria-label', imgAlt || 'Image zoom');
+        if (reducedMotion) lightboxOverlay.style.transition = 'none';
         var img = document.createElement('img');
         img.src = safeSrc;
         img.alt = imgAlt || '';
         img.className = 'tvpg-lightbox-img';
         var closeBtn = document.createElement('button');
+        closeBtn.type = 'button';
         closeBtn.className = 'tvpg-lightbox-close';
         closeBtn.setAttribute('aria-label', 'Close');
         closeBtn.innerHTML = '&times;';
         lightboxOverlay.appendChild(closeBtn);
         lightboxOverlay.appendChild(img);
         document.body.appendChild(lightboxOverlay);
+        lightboxBackground = Array.from(document.body.children).filter(function (node) { return node !== lightboxOverlay; }).map(function (node) {
+            var wasInert = node.inert;
+            node.inert = true;
+            return { node: node, inert: wasInert };
+        });
         document.body.style.overflow = 'hidden';
+        clearAutoScrollTimer();
+        pauseAllVideos();
+        syncThumbVideos();
+        closeBtn.focus();
 
         // Close handlers.
         lightboxOverlay.addEventListener('click', function (e) {
@@ -640,46 +811,71 @@
                 closeLightbox();
             }
         });
-        document.addEventListener('keydown', lightboxKeyHandler);
+        document.addEventListener('keydown', lightboxKeyHandler, true);
+        document.addEventListener('focusin', lightboxFocusHandler);
         // Animate in.
-        requestAnimationFrame(function () { lightboxOverlay.classList.add('tvpg-lightbox--open'); });
+        var openedOverlay = lightboxOverlay;
+        requestAnimationFrame(function () {
+            if (lightboxOverlay === openedOverlay) openedOverlay.classList.add('tvpg-lightbox--open');
+        });
     }
 
     function closeLightbox() {
         if (!lightboxOverlay) return;
-        document.removeEventListener('keydown', lightboxKeyHandler);
-        lightboxOverlay.classList.remove('tvpg-lightbox--open');
-
-        var removed = false;
-        function removeOverlay() {
-            if (removed) return;
-            removed = true;
-            if (lightboxOverlay && lightboxOverlay.parentNode) {
-                lightboxOverlay.parentNode.removeChild(lightboxOverlay);
-            }
-            lightboxOverlay = null;
-            document.body.style.overflow = '';
+        document.removeEventListener('keydown', lightboxKeyHandler, true);
+        document.removeEventListener('focusin', lightboxFocusHandler);
+        lightboxOverlay.remove();
+        lightboxOverlay = null;
+        lightboxBackground.forEach(function (item) { item.node.inert = item.inert; });
+        lightboxBackground = [];
+        document.body.style.overflow = previousBodyOverflow;
+        if (lightboxTrigger && lightboxTrigger.isConnected) lightboxTrigger.focus();
+        else {
+            mainSliderEl.setAttribute('tabindex', '0');
+            mainSliderEl.focus();
         }
+        lightboxTrigger = null;
+        syncThumbVideos();
+        scheduleAutoAdvanceForActiveSlide();
+    }
 
-        lightboxOverlay.addEventListener('transitionend', removeOverlay, { once: true });
-        window.setTimeout(removeOverlay, 300);
+    function lightboxFocusHandler(event) {
+        if (lightboxOverlay && !lightboxOverlay.contains(event.target)) lightboxOverlay.querySelector('button').focus();
     }
 
     function lightboxKeyHandler(e) {
-        if (e.key === 'Escape') closeLightbox();
+        if (e.key === 'Escape') {
+            e.preventDefault();
+            e.stopImmediatePropagation();
+            closeLightbox();
+        } else if (e.key === 'Tab') {
+            // The close button is the dialog's only interactive element.
+            e.preventDefault();
+            lightboxOverlay.querySelector('button').focus();
+        }
     }
 
     // Click on image slides opens lightbox (not video slides).
     // Gated by the enable_lightbox setting so stores with third-party
     // lightbox plugins can disable ours.
-    mainSliderEl.addEventListener('click', function (e) {
+    function activateLightbox(e) {
         if (!settings.enable_lightbox) return;
         var img = e.target.closest('.swiper-slide:not(.tvpg-video-slide) img');
+        if (!img) {
+            var link = e.target.closest('.swiper-slide:not(.tvpg-video-slide) a');
+            img = link ? link.querySelector('img') : null;
+        }
         if (!img) return;
+        if (mainSlider && mainSlider.allowClick === false && e.type === 'click') return;
+        e.preventDefault();
         // Use full-size src (data-large_image from WC, or src).
         var fullSrc = img.closest('a') ? img.closest('a').getAttribute('href') : null;
         if (!fullSrc) fullSrc = img.getAttribute('data-large_image') || img.getAttribute('data-src') || img.getAttribute('src');
-        openLightbox(fullSrc, img.getAttribute('alt'));
+        openLightbox(fullSrc, img.getAttribute('alt'), img.closest('a') || img);
+    }
+    mainSliderEl.addEventListener('click', activateLightbox);
+    mainSliderEl.addEventListener('keydown', function (e) {
+        if (e.key === 'Enter' || e.key === ' ' || e.key === 'Spacebar') activateLightbox(e);
     });
 
     // ── Store Original State ─────────────────────────────────────────────────
@@ -694,6 +890,26 @@
         index: firstImageSlide ? Array.from(firstImageSlide.parentNode.children).indexOf(firstImageSlide) : 0,
         slideSelector: '.swiper-slide:not(.tvpg-video-slide)'
     };
+
+    var imageAttributes = ['src', 'srcset', 'sizes', 'alt', 'data-large_image', 'data-src'];
+    function snapshotImage(image) {
+        var attributes = {};
+        imageAttributes.forEach(function (name) { attributes[name] = image ? image.getAttribute(name) : null; });
+        return attributes;
+    }
+    function restoreImage(image, attributes) {
+        if (!image) return;
+        imageAttributes.forEach(function (name) {
+            if (attributes[name] === null) image.removeAttribute(name);
+            else image.setAttribute(name, attributes[name]);
+        });
+    }
+    function firstImageThumb() {
+        return thumbSliderEl ? thumbSliderEl.querySelector('.swiper-slide:not(.tvpg-video-thumb-slide) img') : null;
+    }
+    var originalImageAttributes = snapshotImage(firstImage);
+    var originalThumbAttributes = snapshotImage(firstImageThumb());
+    var originalImageHref = firstImage && firstImage.closest('a') ? firstImage.closest('a').getAttribute('href') : null;
 
     var videoSlide = mainSliderEl.querySelector('.swiper-slide.tvpg-video-slide');
     var galleryImageEl = videoSlide ? videoSlide.querySelector('.woocommerce-product-gallery__image') : null;
@@ -753,7 +969,7 @@
                 } else {
                     container.innerHTML = currentVideoState;
                 }
-                playVideo(videoSlide);
+                refreshGallery();
                 requestAnimationFrame(function () { isRestoring = false; });
             }
         });
@@ -765,9 +981,13 @@
     // Wait for WooCommerce to finish its DOM updates before we touch the gallery.
     // requestAnimationFrame fires after WC's synchronous jQuery handlers complete,
     // and the nested rAF ensures the browser has painted the WC changes first.
+    var variationRevision = 0;
     function afterDomSettle(callback) {
+        var revision = ++variationRevision;
         requestAnimationFrame(function () {
-            requestAnimationFrame(callback);
+            requestAnimationFrame(function () {
+                if (revision === variationRevision && galleryWrapper.isConnected) callback();
+            });
         });
     }
 
@@ -775,6 +995,8 @@
         if (!variation) return;
 
         afterDomSettle(function () {
+            clearAutoScrollTimer();
+            pauseAllVideos();
             var curVideoSlide = mainSliderEl.querySelector('.swiper-slide.tvpg-video-slide');
             var curVideoThumbSlide = galleryWrapper.querySelector('.tvpg-thumb-slider .swiper-slide.tvpg-video-thumb-slide');
             var curFirstImageSlide = mainSliderEl.querySelector('.swiper-slide:not(.tvpg-video-slide)');
@@ -790,6 +1012,8 @@
                 if (curVideoSlide) {
 					curVideoSlide.hidden = false;
 					if (curVideoThumbSlide) curVideoThumbSlide.hidden = false;
+                    if (mainSlider) mainSlider.update();
+                    if (thumbSlider) thumbSlider.update();
                     var container = curVideoSlide.querySelector('.woocommerce-product-gallery__image');
                     if (container) container.innerHTML = safeVideoHtml;
                     bindNativeVideoEnded(curVideoSlide);
@@ -839,18 +1063,12 @@
 					if (mainSlider) mainSlider.update();
 					if (thumbSlider) thumbSlider.update();
 				} else if (curStaticVideoSlide && originalVideoHtml && !curStaticVideoSlide.classList.contains('tvpg-dynamic-slide')) {
+                    curStaticVideoSlide.hidden = false;
+                    if (curVideoThumbSlide) curVideoThumbSlide.hidden = false;
                     var c = curStaticVideoSlide.querySelector('.woocommerce-product-gallery__image');
                     restoreCleanVideo(c);
                     if (curVideoThumbSlide && originalVideoThumbHtml) {
                         curVideoThumbSlide.innerHTML = originalVideoThumbHtml;
-                        // Re-trigger autoplay after innerHTML injection — the
-                        // restored <video> element loses its playing state.
-                        var restoredThumb = curVideoThumbSlide.querySelector('.tvpg-thumb-video');
-                        if (restoredThumb) {
-                            restoredThumb.muted = true;
-                            var rp = restoredThumb.play();
-                            if (rp !== undefined) rp.catch(function () { });
-                        }
                     }
                     // Re-arm the MutationObserver to protect the restored content.
                     setExpectedVideoState(c ? c.innerHTML : originalVideoHtml);
@@ -860,16 +1078,22 @@
             // 2. Handle Variation Image.
             if (variation && variation.image && variation.image.src && variation.image.src.length > 1) {
                 if (curFirstImage) {
-                    curFirstImage.setAttribute('src', variation.image.full_src || variation.image.src);
+                    curFirstImage.setAttribute('src', variation.image.src);
                     curFirstImage.setAttribute('srcset', variation.image.srcset || '');
+                    curFirstImage.setAttribute('sizes', variation.image.sizes || '');
                     curFirstImage.setAttribute('alt', variation.image.alt || '');
+                    curFirstImage.setAttribute('data-large_image', variation.image.full_src || variation.image.src);
+                    curFirstImage.setAttribute('data-src', variation.image.src);
+                    if (curFirstImage.closest('a')) curFirstImage.closest('a').setAttribute('href', variation.image.full_src || variation.image.src);
                 }
 
-                if (thumbSlider && thumbSlider.slides && originalImage.index >= 0 && thumbSlider.slides[originalImage.index]) {
-                    var tImg = thumbSlider.slides[originalImage.index].querySelector('img');
-                    if (tImg) {
-                        tImg.setAttribute('src', variation.image.gallery_thumbnail_src || variation.image.thumb_src || variation.image.src);
-                    }
+                var tImg = firstImageThumb();
+                if (tImg) {
+                    tImg.setAttribute('src', variation.image.gallery_thumbnail_src || variation.image.thumb_src || variation.image.src);
+                    // WooCommerce's srcset/sizes describe the main image, not this thumbnail.
+                    tImg.removeAttribute('srcset');
+                    tImg.removeAttribute('sizes');
+                    tImg.setAttribute('alt', variation.image.alt || '');
                 }
 
                 if (!variation.tvpg_video_html && mainSlider && mainSlider.slides) {
@@ -877,6 +1101,7 @@
                     mainSlider.slideTo(idx);
                 }
             }
+            refreshGallery();
         });
     }
 
@@ -919,23 +1144,21 @@
 
     function handleResetEvent(event) {
             if (!variationEventBelongsToGallery(event)) return;
+            afterDomSettle(function () {
+            clearAutoScrollTimer();
+            pauseAllVideos();
             // IMP-9 fix: re-query the image element from the live DOM
             // in case the theme replaced the original element.
             var liveFirstSlide = mainSliderEl.querySelector(originalImage.slideSelector);
             var liveFirstImg = liveFirstSlide ? liveFirstSlide.querySelector('img') : null;
             if (liveFirstImg && originalImage.src) {
-                liveFirstImg.setAttribute('src', originalImage.src);
-                liveFirstImg.setAttribute('srcset', originalImage.srcset || '');
-                liveFirstImg.setAttribute('alt', originalImage.alt || '');
+                restoreImage(liveFirstImg, originalImageAttributes);
+                var link = liveFirstImg.closest('a');
+                if (link && originalImageHref !== null) link.setAttribute('href', originalImageHref);
             }
 
             // Restore the thumbnail slider's first image as well.
-            if (thumbSlider && thumbSlider.slides && originalImage.index >= 0 && thumbSlider.slides[originalImage.index]) {
-                var tImg = thumbSlider.slides[originalImage.index].querySelector('img');
-                if (tImg && originalImage.src) {
-                    tImg.setAttribute('src', originalImage.src);
-                }
-            }
+            restoreImage(firstImageThumb(), originalThumbAttributes);
 
             removeDynamicSlides();
 
@@ -946,6 +1169,7 @@
             if (curVideoSlide && originalVideoHtml && !curVideoSlide.classList.contains('tvpg-dynamic-slide')) {
 				curVideoSlide.hidden = false;
 				if (videoThumbSlide) videoThumbSlide.hidden = false;
+                if (videoThumbSlide && originalVideoThumbHtml) videoThumbSlide.innerHTML = originalVideoThumbHtml;
                 var c = curVideoSlide.querySelector('.woocommerce-product-gallery__image');
                 restoreCleanVideo(c);
                 // Re-arm the observer AFTER restoring — not before.
@@ -954,13 +1178,19 @@
                 clearExpectedVideoState();
             }
 
-            if (mainSlider) mainSlider.slideTo(originalImage.index);
+            if (mainSlider) {
+                mainSlider.update();
+                mainSlider.slideTo(originalImage.index);
+            }
+            refreshGallery();
+            });
     }
 
 	registerGalleryInstance({
 		wrapper: galleryWrapper,
 		handleMessage: handleProviderMessage,
 		handleVisibilityChange: handleVisibilityChange,
+		handleWindowFocus: handleWindowFocus,
 		handleVariationEvent: handleVariationEvent,
 		handleResetEvent: handleResetEvent
 	});

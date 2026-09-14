@@ -37,9 +37,10 @@ class TVPG_Video_Embed {
 	 * @since 1.3.0 Moved from TVPG_Frontend to dedicated class.
 	 * @param string $url    The video URL.
 	 * @param string $poster Optional custom poster image URL.
+	 * @param bool   $is_initial Whether this is the initially visible gallery slide.
 	 * @return string HTML markup for the video.
 	 */
-	public static function get_video_html( $url, $poster = '' ) {
+	public static function get_video_html( $url, $poster = '', $is_initial = false ) {
 		$settings = TVPG_Settings::get_all();
 
 		$info = TVPG_Video_Parser::get_video_info( $url );
@@ -54,10 +55,12 @@ class TVPG_Video_Embed {
 
 		switch ( $type ) {
 			case 'youtube':
-				return self::get_youtube_html( $info, $settings, $sizing_class, $aria_label, $preload_mode, $poster );
+				$html = self::get_youtube_html( $info, $settings, $sizing_class, $aria_label, $preload_mode, $poster );
+				break;
 
 			case 'vimeo':
-				return self::get_vimeo_html( $info, $settings, $sizing_class, $aria_label, $preload_mode, $poster );
+				$html = self::get_vimeo_html( $info, $settings, $sizing_class, $aria_label, $preload_mode, $poster );
+				break;
 
 			case 'tiktok':
 				return self::get_tiktok_html( $info, $sizing_class );
@@ -66,11 +69,28 @@ class TVPG_Video_Embed {
 				return self::get_instagram_html( $info, $sizing_class );
 
 			case 'file':
-				return self::get_file_html( $info, $settings, $sizing_class, $aria_label, $preload_mode, $poster );
+				$html = self::get_file_html( $info, $settings, $sizing_class, $aria_label, $preload_mode, $poster );
+				break;
 
 			default:
 				return '';
 		}
+
+		$processor = new WP_HTML_Tag_Processor( $html );
+		while ( $processor->next_tag() ) {
+			if ( 'IMG' === $processor->get_tag() ) {
+				$processor->set_attribute( 'loading', $is_initial ? 'eager' : 'lazy' );
+				$processor->set_attribute( 'fetchpriority', $is_initial ? 'high' : 'low' );
+			} elseif ( 'VIDEO' === $processor->get_tag() ) {
+				// The gallery controller activates playback only for the current slide.
+				$processor->remove_attribute( 'autoplay' );
+				if ( ! $is_initial ) {
+					$processor->set_attribute( 'preload', 'none' );
+				}
+				$processor->set_attribute( 'fetchpriority', $is_initial ? 'high' : 'low' );
+			}
+		}
+		return $processor->get_updated_html();
 	}
 
 	/**
@@ -135,9 +155,9 @@ class TVPG_Video_Embed {
 		}
 		$query     = http_build_query( $params );
 		$embed_url = 'https://player.vimeo.com/video/' . esc_attr( $id ) . '?' . $query;
-		$thumb_url = $poster ? $poster : TVPG_Video_Parser::get_vimeo_thumbnail( $id );
 
 		if ( 'lazy' === $preload_mode ) {
+			$thumb_url = $poster ? $poster : TVPG_Video_Parser::get_vimeo_thumbnail( $id );
 			return self::get_lazy_facade_html( $embed_url, $thumb_url, $sizing_class, $aria_label, 'vimeo' );
 		}
 
@@ -209,7 +229,6 @@ class TVPG_Video_Embed {
 	private static function get_file_html( $info, $settings, $sizing_class, $aria_label, $preload_mode, $poster ) {
 		$controls   = $settings['show_controls'] ? 'controls' : '';
 		$loop       = $settings['loop'] ? 'loop' : '';
-		$autoplay   = $settings['autoplay'] ? 'autoplay' : '';
 		$muted      = ( $settings['autoplay'] && $settings['mute_autoplay'] ) ? 'muted' : '';
 		$object_fit = 'cover' === $settings['video_sizing'] ? 'cover' : 'contain';
 
@@ -234,7 +253,7 @@ class TVPG_Video_Embed {
 		}
 		$poster_attr = $poster ? 'poster="' . esc_url( $poster ) . '"' : '';
 
-		return '<video ' . $controls . ' ' . $loop . ' ' . $autoplay . ' ' . $muted . ' playsinline ' . $poster_attr . ' preload="' . esc_attr( $preload_val ) . '" fetchpriority="low" src="' . esc_url( $info['url'] ) . '" style="width:100%;height:100%;object-fit:' . esc_attr( $object_fit ) . '" aria-label="' . $aria_label . '"></video>';
+		return '<video ' . $controls . ' ' . $loop . ' ' . $muted . ' playsinline ' . $poster_attr . ' preload="' . esc_attr( $preload_val ) . '" fetchpriority="low" src="' . esc_url( $info['url'] ) . '" style="width:100%;height:100%;object-fit:' . esc_attr( $object_fit ) . '" aria-label="' . $aria_label . '"></video>';
 	}
 
 	/**
@@ -375,6 +394,11 @@ class TVPG_Video_Embed {
 				'aria-label'      => array(),
 			),
 			'img'        => array(
+				'srcset'        => array(),
+				'sizes'         => array(),
+				'data-src'      => array(),
+				'data-srcset'   => array(),
+				'data-sizes'    => array(),
 				'src'           => array(),
 				'alt'           => array(),
 				'class'         => array(),
@@ -423,6 +447,8 @@ class TVPG_Video_Embed {
 				'aria-hidden'     => array(),
 			),
 			'video'      => array(
+				'data-src'      => array(),
+				'data-poster'   => array(),
 				'src'           => array(),
 				'poster'        => array(),
 				'preload'       => array(),

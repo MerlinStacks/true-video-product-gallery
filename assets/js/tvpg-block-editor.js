@@ -199,6 +199,11 @@
                 }, __('Clear', 'true-video-product-gallery'))
             ),
 
+            el('div', { className: 'tvpg-automatic-preview' },
+                el('h4', null, __('Automatic Category Preview', 'true-video-product-gallery')),
+                el('p', null, __('Shop and category previews are generated automatically from your existing product video when archive swapping is enabled. No second upload is needed. Generation supports local WordPress video uploads only and requires FFmpeg and background processing on your host. The original video is used until a preview is ready or if generation is unavailable. Simultaneous video playback is unaffected.', 'true-video-product-gallery'))
+            ),
+
             // Thumbnail URL input.
             el(TextControl, {
                 label: __('Custom Thumbnail URL', 'true-video-product-gallery'),

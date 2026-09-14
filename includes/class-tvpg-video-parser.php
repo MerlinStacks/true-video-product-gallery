@@ -22,6 +22,21 @@ if ( ! defined( 'ABSPATH' ) ) {
 class TVPG_Video_Parser {
 
 	/**
+	 * Sanitize an optional preview to providers playable by the archive renderer.
+	 *
+	 * @param mixed $url Submitted URL.
+	 * @return string Valid video URL, or an empty string.
+	 */
+	public static function sanitize_archive_video_url( $url ) {
+		if ( ! is_string( $url ) ) {
+			return '';
+		}
+		$url  = esc_url_raw( trim( $url ), array( 'http', 'https' ) );
+		$info = self::get_video_info( $url );
+		return $info && in_array( $info['type'], array( 'file', 'youtube', 'vimeo' ), true ) ? $url : '';
+	}
+
+	/**
 	 * Get video information from URL.
 	 *
 	 * Parses a video URL and returns an array containing the video type
@@ -247,7 +262,7 @@ class TVPG_Video_Parser {
 	}
 
 	/**
-	 * Fetch Vimeo thumbnail via oEmbed API.
+	 * Read a Vimeo thumbnail without blocking rendering on the provider.
 	 *
 	 * Results are cached using WordPress transients for 24 hours.
 	 *
@@ -256,41 +271,84 @@ class TVPG_Video_Parser {
 	 * @return string|false Thumbnail URL, or false on failure.
 	 */
 	public static function get_vimeo_thumbnail( $video_id ) {
-		if ( empty( $video_id ) ) {
+		if ( ! preg_match( '/^\d+$/', (string) $video_id ) ) {
 			return false;
 		}
 
 		$cache_key = 'tvpg_vimeo_thumb_' . $video_id;
 		$cached    = get_transient( $cache_key );
 
-		// IMP-14: Return false immediately for negative cache sentinel.
-		if ( 'none' === $cached ) {
-			return false;
-		}
-
 		if ( false !== $cached ) {
-			return $cached;
+			return 'none' === $cached ? get_transient( $cache_key . '_stale' ) : $cached;
 		}
 
-		$oembed_url = 'https://vimeo.com/api/oembed.json?url=' . rawurlencode( 'https://vimeo.com/' . $video_id );
-		$response   = wp_remote_get( $oembed_url, array( 'timeout' => 15 ) );
+		$args = array( (string) $video_id );
+		if ( ! wp_next_scheduled( 'tvpg_refresh_vimeo_thumbnail', $args ) && self::acquire_thumbnail_lock( $video_id, 'schedule' ) ) {
+			$result = wp_schedule_single_event( time() + 1, 'tvpg_refresh_vimeo_thumbnail', $args, true );
+			if ( is_wp_error( $result ) || ! $result ) {
+				delete_option( 'tvpg_vimeo_schedule_' . $video_id );
+			}
+		}
 
-		if ( is_wp_error( $response ) ) {
-			// IMP-14: Cache failure for 1 hour to prevent repeated outbound requests.
+		return get_transient( $cache_key . '_stale' );
+	}
+
+	/**
+	 * Acquire an atomic, expiring lock, including with persistent object caches.
+	 *
+	 * @param string $video_id Vimeo ID.
+	 * @param string $purpose Lock purpose.
+	 * @return bool
+	 */
+	private static function acquire_thumbnail_lock( $video_id, $purpose ) {
+		$key = 'tvpg_vimeo_' . $purpose . '_' . $video_id;
+		$expires = get_option( $key );
+		if ( $expires && (int) $expires < time() ) {
+			delete_option( $key );
+		}
+		return add_option( $key, time() + 5 * MINUTE_IN_SECONDS, '', false );
+	}
+
+	/**
+	 * Refresh thumbnails in WP-Cron; keep stale images during provider outages.
+	 *
+	 * @param string $video_id Vimeo ID.
+	 * @return void
+	 */
+	public static function refresh_vimeo_thumbnail( $video_id ) {
+		if ( ! preg_match( '/^\d+$/', (string) $video_id ) || ! self::acquire_thumbnail_lock( $video_id, 'fetch' ) ) {
+			return;
+		}
+		$cache_key = 'tvpg_vimeo_thumb_' . $video_id;
+		try {
+			if ( false !== get_transient( $cache_key ) ) {
+				return;
+			}
+			$oembed_url = 'https://vimeo.com/api/oembed.json?url=' . rawurlencode( 'https://vimeo.com/' . $video_id );
+			$response   = wp_remote_get( $oembed_url, array( 'timeout' => 5, 'limit_response_size' => 65536 ) );
+
+			if ( is_wp_error( $response ) || 200 !== wp_remote_retrieve_response_code( $response ) ) {
+				set_transient( $cache_key, 'none', HOUR_IN_SECONDS );
+				return;
+			}
+
+			$body = wp_remote_retrieve_body( $response );
+			$data = json_decode( $body, true );
+
+			if ( ! empty( $data['thumbnail_url'] ) && is_string( $data['thumbnail_url'] ) ) {
+				$thumbnail = esc_url_raw( $data['thumbnail_url'], array( 'http', 'https' ) );
+				if ( $thumbnail ) {
+					set_transient( $cache_key, $thumbnail, DAY_IN_SECONDS );
+					set_transient( $cache_key . '_stale', $thumbnail, 30 * DAY_IN_SECONDS );
+					return;
+				}
+			}
+
+			// Back off for an hour without discarding the last usable thumbnail.
 			set_transient( $cache_key, 'none', HOUR_IN_SECONDS );
-			return false;
+		} finally {
+			delete_option( 'tvpg_vimeo_fetch_' . $video_id );
+			delete_option( 'tvpg_vimeo_schedule_' . $video_id );
 		}
-
-		$body = wp_remote_retrieve_body( $response );
-		$data = json_decode( $body, true );
-
-		if ( ! empty( $data['thumbnail_url'] ) ) {
-			set_transient( $cache_key, $data['thumbnail_url'], DAY_IN_SECONDS );
-			return $data['thumbnail_url'];
-		}
-
-		// IMP-14: Cache failure for 1 hour.
-		set_transient( $cache_key, 'none', HOUR_IN_SECONDS );
-		return false;
 	}
 }

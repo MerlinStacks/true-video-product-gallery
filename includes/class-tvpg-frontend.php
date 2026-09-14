@@ -32,6 +32,14 @@ class TVPG_Frontend {
 	 */
 	private $assets_enqueued = false;
 
+	/** @var bool Whether any gallery in this request requires Swiper. */
+	private $needs_slider = false;
+
+	/** Register background work on frontend, admin and cron requests. */
+	public function __construct() {
+		add_action( 'tvpg_refresh_vimeo_thumbnail', array( 'TVPG_Video_Parser', 'refresh_vimeo_thumbnail' ) );
+	}
+
 	/**
 	 * Product IDs already wrapped by an archive image filter.
 	 *
@@ -69,7 +77,11 @@ class TVPG_Frontend {
 		$archive_swap_on   = $this->is_archive_swap_enabled();
 		$has_shortcode     = $this->page_has_gallery_shortcode();
 
-		if ( ! $is_single_product && ! $is_product_loop && ! $has_shortcode ) {
+		if ( $is_product_loop && $archive_swap_on ) {
+			$this->enqueue_archive_assets();
+		}
+
+		if ( ! $is_single_product && ! $has_shortcode ) {
 			return;
 		}
 
@@ -82,17 +94,12 @@ class TVPG_Frontend {
 
 		$needs_slider = $has_shortcode;
 		if ( $is_single_product && $product ) {
-			$gallery_count = count( $product->get_gallery_image_ids() );
-			$has_main      = (bool) $product->get_image_id();
-			$has_video     = (bool) get_post_meta( $product->get_id(), '_tvpg_video_url', true );
-			$is_variable   = $product->is_type( 'variable' );
-			$total_slides  = ( $has_main ? 1 : 0 ) + $gallery_count + ( $has_video ? 1 : 0 );
-
-			// Variable products always need the slider for variation video injection.
-			$needs_slider = ( $total_slides > 1 ) || $is_variable;
+			$needs_slider = $has_shortcode || TVPG_Gallery_Renderer::needs_slider( $product );
 		}
 
-		$this->enqueue_gallery_assets( $needs_slider, $is_product_loop && $archive_swap_on );
+		if ( $has_shortcode || $product instanceof WC_Product ) {
+			$this->enqueue_gallery_assets( $needs_slider );
+		}
 	}
 
 	/**
@@ -111,10 +118,11 @@ class TVPG_Frontend {
 	 * Enqueue the frontend gallery assets.
 	 *
 	 * @param bool $needs_slider Whether Swiper is required.
-	 * @param bool $archive_swap Whether archive media swapping is active.
 	 * @return void
 	 */
-	private function enqueue_gallery_assets( $needs_slider, $archive_swap = false ) {
+	private function enqueue_gallery_assets( $needs_slider ) {
+		$this->needs_slider = $this->needs_slider || $needs_slider;
+		$needs_slider       = $this->needs_slider;
 		$suffix   = ( defined( 'SCRIPT_DEBUG' ) && SCRIPT_DEBUG ) ? '' : '.min';
 		$settings = TVPG_Settings::get_all();
 
@@ -133,14 +141,16 @@ class TVPG_Frontend {
 		}
 
 		$style_deps = $needs_slider ? array( 'tvpg-swiper' ) : array();
-		if ( $this->assets_enqueued && ! wp_style_is( 'tvpg-frontend', 'done' ) ) {
-			wp_dequeue_style( 'tvpg-frontend' );
+		if ( $needs_slider && wp_style_is( 'tvpg-frontend', 'registered' ) ) {
+			$registered = wp_styles()->registered['tvpg-frontend'];
+			$registered->deps = array_unique( array_merge( $registered->deps, $style_deps ) );
 		}
 		wp_enqueue_style( 'tvpg-frontend', TVPG_URL . 'assets/css/tvpg-frontend' . $suffix . '.css', $style_deps, TVPG_VERSION );
 
 		$script_deps = $needs_slider ? array( 'tvpg-swiper' ) : array();
-		if ( $this->assets_enqueued && ! wp_script_is( 'tvpg-frontend', 'done' ) ) {
-			wp_dequeue_script( 'tvpg-frontend' );
+		if ( $needs_slider && wp_script_is( 'tvpg-frontend', 'registered' ) ) {
+			$registered = wp_scripts()->registered['tvpg-frontend'];
+			$registered->deps = array_unique( array_merge( $registered->deps, $script_deps ) );
 		}
 		wp_enqueue_script(
 			'tvpg-frontend',
@@ -162,22 +172,8 @@ class TVPG_Frontend {
 			)
 		);
 
-		if ( $archive_swap ) {
-			wp_enqueue_script(
-				'tvpg-archive',
-				TVPG_URL . 'assets/js/tvpg-archive' . $suffix . '.js',
-				array( 'tvpg-frontend' ),
-				TVPG_VERSION,
-				array(
-					'strategy'  => 'defer',
-					'in_footer' => true,
-				)
-			);
-			wp_localize_script(
-				'tvpg-archive',
-				'tvpgArchiveParams',
-				array( 'settings' => $settings )
-			);
+		if ( $this->assets_enqueued ) {
+			return;
 		}
 
 		// Dynamic CSS for video sizing.
@@ -204,6 +200,14 @@ class TVPG_Frontend {
 
 		wp_add_inline_style( 'tvpg-frontend', $custom_css );
 		$this->assets_enqueued = true;
+	}
+
+	/** Enqueue the standalone archive controller and card styles. */
+	private function enqueue_archive_assets() {
+		$suffix = ( defined( 'SCRIPT_DEBUG' ) && SCRIPT_DEBUG ) ? '' : '.min';
+		wp_enqueue_style( 'tvpg-archive', TVPG_URL . 'assets/css/tvpg-archive' . $suffix . '.css', array(), TVPG_VERSION );
+		wp_enqueue_script( 'tvpg-archive', TVPG_URL . 'assets/js/tvpg-archive' . $suffix . '.js', array(), TVPG_VERSION, array( 'strategy' => 'defer', 'in_footer' => true ) );
+		wp_localize_script( 'tvpg-archive', 'tvpgArchiveParams', array( 'settings' => TVPG_Settings::get_all() ) );
 	}
 
 
@@ -238,7 +242,7 @@ class TVPG_Frontend {
 		}
 
 		$secondary_markup = '';
-		$video_url        = get_post_meta( $product->get_id(), '_tvpg_video_url', true );
+		$video_url        = $this->get_archive_video_url( $product );
 
 		if ( $video_url ) {
 			$secondary_markup = $this->get_loop_video_markup( $video_url, $product );
@@ -307,7 +311,7 @@ class TVPG_Frontend {
 		}
 
 		$secondary_markup = '';
-		$video_url        = get_post_meta( $product->get_id(), '_tvpg_video_url', true );
+		$video_url        = $this->get_archive_video_url( $product );
 
 		if ( $video_url ) {
 			$secondary_markup = $this->get_loop_video_markup( $video_url, $product );
@@ -346,7 +350,29 @@ class TVPG_Frontend {
 	 * @return string
 	 */
 	private function wrap_loop_media_html( $primary_html, $secondary_html ) {
+		$secondary_html = self::defer_loop_images( $secondary_html );
 		return '<div class="tvpg-loop-media" data-tvpg-loop-media="1"><div class="tvpg-loop-primary-media">' . $primary_html . '</div><div class="tvpg-loop-secondary-media" aria-hidden="true">' . $secondary_html . '</div></div>';
+	}
+
+	/**
+	 * Defer responsive sources after WordPress has generated attachment markup.
+	 *
+	 * @param string $html Secondary media HTML.
+	 * @return string
+	 */
+	private static function defer_loop_images( $html ) {
+		$processor = new WP_HTML_Tag_Processor( $html );
+		while ( $processor->next_tag( 'IMG' ) ) {
+			foreach ( array( 'src', 'srcset', 'sizes' ) as $attribute ) {
+				$value = $processor->get_attribute( $attribute );
+				if ( is_string( $value ) ) {
+					$processor->set_attribute( 'data-' . $attribute, $value );
+					$processor->remove_attribute( $attribute );
+				}
+			}
+			$processor->set_attribute( 'fetchpriority', 'low' );
+		}
+		return $processor->get_updated_html();
 	}
 
 	/**
@@ -375,7 +401,7 @@ class TVPG_Frontend {
 		}
 
 		$secondary_markup = '';
-		$video_url        = get_post_meta( $product->get_id(), '_tvpg_video_url', true );
+		$video_url        = $this->get_archive_video_url( $product );
 
 		if ( $video_url ) {
 			$secondary_markup = $this->get_loop_video_markup( $video_url, $product );
@@ -402,7 +428,18 @@ class TVPG_Frontend {
 			return;
 		}
 
-		echo '<template class="tvpg-loop-secondary-template">' . wp_kses( $secondary_markup, TVPG_Video_Embed::get_allowed_html() ) . '</template>';
+		echo '<template class="tvpg-loop-secondary-template">' . wp_kses( self::defer_loop_images( $secondary_markup ), TVPG_Video_Embed::get_allowed_html() ) . '</template>';
+	}
+
+	/**
+	 * Resolve an automatic preview only for archive cards.
+	 *
+	 * @param WC_Product $product Product object.
+	 * @return string Video URL.
+	 */
+	private function get_archive_video_url( $product ) {
+		$url = get_post_meta( $product->get_id(), '_tvpg_video_url', true );
+		return TVPG_Preview_Generator::get_preview_url( $product->get_id(), $url );
 	}
 
 	/**
@@ -424,9 +461,9 @@ class TVPG_Frontend {
 			if ( empty( $poster ) ) {
 				$poster = wp_get_attachment_image_url( $product->get_image_id(), 'woocommerce_thumbnail' );
 			}
-			$poster_attr = $poster ? ' poster="' . esc_url( $poster ) . '"' : '';
+			$poster_attr = $poster ? ' data-poster="' . esc_url( $poster ) . '"' : '';
 
-			return '<video class="tvpg-loop-secondary-video" preload="none" muted playsinline loop src="' . esc_url( $info['url'] ) . '"' . $poster_attr . ' fetchpriority="low" aria-label="' . esc_attr__( 'Product preview video', 'true-video-product-gallery' ) . '"></video>';
+			return '<video class="tvpg-loop-secondary-video" preload="none" muted playsinline loop data-src="' . esc_url( $info['url'] ) . '"' . $poster_attr . ' fetchpriority="low" aria-label="' . esc_attr__( 'Product preview video', 'true-video-product-gallery' ) . '"></video>';
 		}
 
 		if ( 'youtube' === $info['type'] && ! empty( $info['id'] ) ) {
@@ -435,7 +472,7 @@ class TVPG_Frontend {
 		}
 
 		if ( 'vimeo' === $info['type'] && ! empty( $info['id'] ) ) {
-			$src = 'https://player.vimeo.com/video/' . rawurlencode( $info['id'] ) . '?autoplay=0&muted=1&title=0&byline=0&portrait=0';
+			$src = 'https://player.vimeo.com/video/' . rawurlencode( $info['id'] ) . '?autoplay=0&autopause=0&muted=1&title=0&byline=0&portrait=0';
 			return '<iframe class="tvpg-loop-secondary-video tvpg-loop-secondary-iframe" data-src="' . esc_url( $src ) . '" allow="autoplay; fullscreen; picture-in-picture" referrerpolicy="strict-origin-when-cross-origin" title="' . esc_attr__( 'Product preview video', 'true-video-product-gallery' ) . '"></iframe>';
 		}
 
@@ -580,6 +617,11 @@ class TVPG_Frontend {
 	 * @return void
 	 */
 	public function render_gallery() {
+		global $product;
+		$gallery_product = $product instanceof WC_Product ? $product : wc_get_product( get_the_ID() );
+		if ( $gallery_product ) {
+			$this->enqueue_gallery_assets( TVPG_Gallery_Renderer::needs_slider( $gallery_product ) );
+		}
 		TVPG_Gallery_Renderer::render();
 	}
 
@@ -602,8 +644,6 @@ class TVPG_Frontend {
 	 * @return string Gallery HTML.
 	 */
 	public function render_shortcode( $atts = array() ) {
-		$this->enqueue_gallery_assets( true, false );
-
 		$atts = shortcode_atts(
 			array( 'product_id' => 0 ),
 			$atts,
@@ -614,8 +654,16 @@ class TVPG_Frontend {
 		$original_post    = null;
 		$original_product = null;
 
+		global $post, $product; // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedVariableFound
+		$target_id = $product_id ?: ( $product instanceof WC_Product ? $product->get_id() : get_the_ID() );
+		$target_post = get_post( $target_id );
+		if ( ! $target_post || 'product' !== $target_post->post_type
+			|| ( 'publish' !== $target_post->post_status && ! current_user_can( 'read_post', $target_id ) )
+			|| post_password_required( $target_post ) ) {
+			return '<!-- TVPG: Product unavailable -->';
+		}
+
 		if ( $product_id > 0 ) {
-			global $post, $product; // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedVariableFound
 			$target_post    = get_post( $product_id );
 			$target_product = wc_get_product( $product_id );
 

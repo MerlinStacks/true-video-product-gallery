@@ -2,7 +2,7 @@
 /**
  * Plugin Name: True Video Product Gallery
  * Description: A powerful product gallery plugin for WooCommerce with video support, zoom, and customizable layouts.
- * Version: 1.7.15
+ * Version: 1.7.18
  * Author: SLDevs
  * Author URI: https://sldevs.com
  * Requires at least: 6.4
@@ -23,7 +23,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 // Define plugin constants.
-define( 'TVPG_VERSION', '1.7.15' );
+define( 'TVPG_VERSION', '1.7.18' );
 define( 'TVPG_PATH', plugin_dir_path( __FILE__ ) );
 define( 'TVPG_URL', plugin_dir_url( __FILE__ ) );
 
@@ -92,3 +92,46 @@ function tvpg_init() {
 	$plugin->run();
 }
 add_action( 'plugins_loaded', 'tvpg_init' );
+
+register_deactivation_hook( __FILE__, 'tvpg_deactivate_previews' );
+register_activation_hook( __FILE__, 'tvpg_activate_previews' );
+
+/** Enable a fresh preview lifecycle on activation, including network-activated sites. */
+function tvpg_activate_previews( $network_wide = false ) {
+	require_once TVPG_PATH . 'includes/class-tvpg-preview-generator.php';
+	if ( $network_wide && is_multisite() ) {
+		$site_ids = get_sites(
+			array(
+				'fields' => 'ids',
+				'number' => 0,
+			)
+		);
+		foreach ( $site_ids as $site_id ) {
+			switch_to_blog( $site_id );
+			TVPG_Preview_Generator::activate();
+			restore_current_blog();
+		}
+	} else {
+		TVPG_Preview_Generator::activate();
+	}
+}
+
+/** Cancel background preview work, including network-activated sites. */
+function tvpg_deactivate_previews( $network_wide = false ) {
+	require_once TVPG_PATH . 'includes/class-tvpg-preview-generator.php';
+	if ( $network_wide && is_multisite() ) {
+		$site_ids = get_sites(
+			array(
+				'fields' => 'ids',
+				'number' => 0,
+			)
+		);
+		foreach ( $site_ids as $site_id ) {
+			switch_to_blog( $site_id );
+			TVPG_Preview_Generator::deactivate();
+			restore_current_blog();
+		}
+	} else {
+		TVPG_Preview_Generator::deactivate();
+	}
+}

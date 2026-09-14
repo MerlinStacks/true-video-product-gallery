@@ -28,7 +28,6 @@ jQuery(document).ready(function ($) {
         $('#tvpg_video_url').val('').trigger('change');
     });
 
-
     // --- THUMBNAIL ---
     $('#tvpg_upload_thumb_btn').on('click', function (event) {
         event.preventDefault();

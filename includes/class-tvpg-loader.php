@@ -42,6 +42,8 @@ class TVPG_Loader {
 		require_once TVPG_PATH . 'includes/class-tvpg-schema.php';
 		require_once TVPG_PATH . 'includes/class-tvpg-gallery-renderer.php';
 		require_once TVPG_PATH . 'includes/class-tvpg-block-editor.php';
+		require_once TVPG_PATH . 'includes/class-tvpg-preview-generator.php';
+		TVPG_Preview_Generator::init();
 		$this->define_admin_hooks();
 		$this->define_public_hooks();
 		new TVPG_Block_Editor();

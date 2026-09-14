@@ -5,7 +5,7 @@ Tags: woocommerce, video, product gallery, youtube, vimeo, tiktok, instagram
 Requires at least: 6.4
 Tested up to: 7.1
 Requires PHP: 8.0
-Stable tag: 1.7.15
+Stable tag: 1.7.18
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -70,6 +70,23 @@ Yes, this plugin requires WooCommerce to be installed and active.
 4. Global settings page with preload options
 
 == Changelog ==
+
+= 1.7.18 =
+* Replaced the manual category-preview upload field with automatic background generation from the existing local product video.
+* Generates a muted, up-to-eight-second, max-480px H.264 MP4 preview when a compatible FFmpeg installation is available; only smaller validated outputs are used.
+* Keeps the original on product pages and as an archive fallback while queued, unavailable or failed. Simultaneous category playback is unchanged.
+* Added bounded encoding, shared-source caching, retries, safe cleanup and real-encoder regression tests.
+
+= 1.7.17 =
+* Added an optional Category Preview Video field with media-library selection in classic and block editors.
+* Shop/category cards prefer the preview and fall back to the existing product video when blank or unsupported; product-page videos are unchanged.
+* Preserved simultaneous in-view playback and deferred loading. Preview files are uploaded separately, not automatically compressed.
+
+= 1.7.16 =
+* Reduced archive assets and deferred secondary media loading while preserving simultaneous in-view video previews.
+* Fixed offscreen playback, delayed player activation, AJAX card initialization and theme fallback handling.
+* Moved Vimeo thumbnail refreshes to background jobs and improved responsive image loading.
+* Fixed variation slider modules and improved gallery keyboard, lightbox and reduced-motion support.
 
 = 1.7.15 =
 * COMPATIBILITY: Updated template metadata for WooCommerce 11.1.0

@@ -3,6 +3,45 @@
 
 ## [Unreleased]
 
+## [1.7.18] - 2026-09-14
+### Changed
+- Replaced manual preview uploads with automatic background generation from the existing local WordPress product-video attachment. Legacy manual preview metadata is ignored.
+- Product pages retain their original video; archives use smaller validated derivatives when ready, otherwise the original. Multiple visible previews can still play together.
+
+### Added
+- Bounded FFmpeg H.264 preview generation (up to eight seconds, max 480px, 24 fps, muted, no upscaling) via Action Scheduler or WP-Cron.
+- Local attachment/path validation, seekable descriptor-only input, capability checks, atomic queue claims, processing lock, source-change detection and bounded retries.
+- Shared-source lookup caching outside the render path, attachment-indexed cleanup, superseded derivative pruning and deactivation/uninstall job cleanup.
+- Classic editor processing status and guidance in both editors; unsupported hosting/providers use the original without requiring another upload.
+- Separate generator test suite included in `composer test`, with optional real FFmpeg checks for faststart, end-moov and small inputs.
+
+## [1.7.17] - 2026-09-14
+### Added
+- Optional per-product Category Preview Video URL with upload/select and clear controls in classic and block editors.
+- Archive cards prefer a supported preview URL, falling back to the main product video when blank or unsupported. Preview-only products are supported without adding the preview to the product gallery or schema.
+- Shared validation, REST metadata registration, uninstall cleanup and regression coverage for selection, saving and permissions.
+- Simultaneous visible playback and deferred source activation remain unchanged; no automatic transcoding is performed.
+
+## [1.7.16] - 2026-09-14
+### Performance
+- Split archive assets from the product gallery and defer secondary media URLs until activation.
+- Preserve simultaneous in-view category videos, with offscreen/background pausing and stale activation protection.
+- Refresh Vimeo thumbnails through locked background jobs, serving cached thumbnails or fallbacks during rendering.
+- Match image priority to visible media and prevent inactive native video autoplay/preloading.
+
+### Fixed
+- Restore required Swiper manipulation/fade modules without overwriting a theme's Swiper global.
+- Correct shortcode dependencies, native media slide counting, responsive attributes and placeholder thumbnail markup.
+- Initialize AJAX archive cards and preserve titles/prices when wrapping theme fallback images.
+- Restrict shortcode galleries to readable products.
+
+### Accessibility
+- Add keyboard thumbnail/lightbox activation, modal focus management and slideshow pause controls.
+- Respect reduced motion and pause automatic slideshows while hidden or focused.
+
+### Tests
+- Add archive/gallery DOM regressions and PHP performance tests, including optional real WordPress HTML API coverage.
+
 ## [1.7.15] - 2026-09-07
 ### Compatibility
 - Updated the WooCommerce gallery template version header to 11.1.0.

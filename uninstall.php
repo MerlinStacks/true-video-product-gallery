@@ -22,11 +22,14 @@ if ( ! function_exists( 'tvpg_cleanup_site' ) ) {
 	 * @since 1.6.0
 	 */
 	function tvpg_cleanup_site() {
+		require_once __DIR__ . '/includes/class-tvpg-preview-generator.php';
+		TVPG_Preview_Generator::uninstall();
 		// 1. Delete Plugin Options.
 		delete_option( 'tvpg_options' );
 
 		// 2. Delete Post Meta (Cleanup video data from products).
 		delete_metadata( 'post', 0, '_tvpg_video_url', '', true );
+		delete_metadata( 'post', 0, '_tvpg_archive_video_url', '', true );
 		delete_metadata( 'post', 0, '_tvpg_video_thumb_url', '', true );
 		delete_metadata( 'post', 0, '_tvpg_use_same_video', '', true );
 

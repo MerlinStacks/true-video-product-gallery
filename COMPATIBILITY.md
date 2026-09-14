@@ -29,9 +29,11 @@ Our gallery initializes when the page loads (via deferred vanilla JS).
 *   **Cause**: The popup content is loaded via AJAX after our script has already run, so Swiper never gets initialised for the injected DOM.
 *   **Fix**: After the popup content is inserted, trigger a global re-init by dispatching a custom event:
     ```javascript
-    window.dispatchEvent( new Event( 'tvpg-init-gallery' ) );
+    document.dispatchEvent( new Event( 'tvpg-init-gallery' ) );
     ```
-    If Swiper is not available (ad-blocked), the gallery will still show a basic scrollable grid via CSS fallback.
+    This event initializes existing markup; it does not download missing assets. Quick-view integrations must enqueue the gallery CSS, frontend controller and Swiper when needed. Ordinary category pages intentionally load only archive assets. With gallery CSS present but Swiper unavailable, the gallery uses its basic CSS fallback.
+
+Archive cards inserted into an existing product grid are initialized automatically. For a separately inserted grid, call `window.tvpgInitArchive(rootElement)` after insertion; initialization is idempotent.
 
 ### 4. Personalization Plugins (e.g. Zakeke, PPOM, Personalise It)
 *   **Status**: **Compatible**.
@@ -55,7 +57,30 @@ Our gallery initializes when the page loads (via deferred vanilla JS).
 *   **Fix**: Exclude `tvpg-frontend.js` from "Delay execution" lists if you experience interactivity issues.
 
 ### Archive Video Performance (SEO / Core Web Vitals)
-*   **Video preload**: Self-hosted archive preview videos use `preload="none"` and `fetchpriority="low"` to avoid competing with primary product images (LCP).
-*   **Poster fallback**: Archive preview videos use a poster image (custom thumbnail when available, else product thumbnail) to reduce layout shifts and early media decode costs.
-*   **Mobile control**: On touch devices, previews only play while cards are sufficiently in-view, then pause when out-of-view to reduce CPU/network usage.
+#### Automatic category preview videos
+Upload/select the product video once in **Product Video** settings and save the product. No separate category upload is required. With archive swapping enabled, shop/category cards automatically use a generated lightweight preview when ready, while product pages retain the original video. Existing products can queue generation when they appear in an archive. The previous manual preview field has been removed and its stored value is ignored.
+
+Generation uses the first **up to eight seconds**, removes audio, limits the longest side to **480 pixels** without upscaling, and produces a **24 fps H.264 MP4** with faststart. Only a successfully decoded output smaller than the original is used. All eligible visible videos may continue playing together. Processing is asynchronous, never run as part of rendering a category page.
+
+**Hosting requirements:** PHP `proc_open`, writable uploads and temporary directories, working Action Scheduler or WP-Cron, and FFmpeg with `libx264` and the seekable **`fd` input protocol**. FFmpeg 7.0.2 was tested; an older or differently built binary without the required capabilities will retain the original. The plugin does not install FFmpeg. A hosting administrator can point to a trusted executable in `wp-config.php`:
+
+```php
+define( 'TVPG_FFMPEG_PATH', '/usr/local/bin/ffmpeg' );
+```
+
+Only verified local WordPress video attachments physically inside uploads are processed (maximum 512 MB; MP4/M4V/MOV/WebM/MKV/AVI containers). YouTube, Vimeo, remote/offloaded-only media and unsupported files continue using the original playback path. The original also remains in use while queued, when output is not smaller, or if hosting/processing is unavailable. The classic editor displays the saved video's processing status; refresh after the job runs. Save/update the product again to retry a terminal failure after repairing hosting configuration.
+
+One encoder runs at a time per filesystem lock, with bounded runtime, threads, output size and retries. Multi-host workers must use the same effective lock file: both the temporary directory and `ABSPATH` must match, because the filename hashes `ABSPATH`. Derivatives are stored under `uploads/tvpg-previews/`, reused for a shared source, pruned after replacement generation, and removed on attachment deletion/uninstall. Deactivation cancels jobs but retains completed previews. Hosting page caches may continue serving the original until refreshed; avoid aggressive global cache purges for each completed preview.
+
+URL-to-attachment mappings are cached for 24 hours for resolved IDs and one hour for misses. Expired mappings temporarily use the original while background resolution runs, even if a completed derivative exists. Attachment URL lookup is not performed while rendering category cards.
+
+#### Loading and caching
+*   **Deferred media**: Secondary image, native video and poster URLs are assigned only when a preview is activated. The primary product image remains visible while the preview loads. Playback still downloads media; `preload="none"` is not a bandwidth cap.
+*   **Simultaneous previews**: Touch devices retain simultaneous playback for sufficiently visible cards, with no video concurrency limit. Desktop retains hover playback. Offscreen cards and hidden tabs pause playback, but pausing does not necessarily cancel provider buffering.
+*   **Reduced motion**: Automatic viewport previews respect reduced-motion preferences; intentional interactions remain available.
 *   **Slow network heuristic**: Archive media swap is automatically disabled when the browser reports Data Saver enabled (`navigator.connection.saveData`) or slow connection classes (`slow-2g`, `2g`, `3g`).
+*   **Vimeo thumbnails**: Cache misses use a fallback and schedule a background refresh. WP-Cron must run for thumbnails to refresh; existing successful values can be served while refreshing.
+*   **Deployment**: Purge full-page and optimization/CDN caches after updating so deferred markup and the matching versioned scripts are delivered together.
+
+### Regression checks
+Run `npm ci`, `npm run build`, `npm run test:js` and `composer test`. The Composer command runs the normal PHP suite and the separately bootstrapped generator suite. Set `TVPG_WP_TEST_PATH` to a WordPress checkout to also exercise its real HTML tag processor, and `TVPG_TEST_REAL_FFMPEG` to a trusted absolute FFmpeg path to enable real encoding tests (matching `ffprobe` beside it is required). Without those tools, integration checks are explicitly skipped. Browser tests use DOM/media doubles, not live provider playback. Before release, verify category scrolling/hover, background tabs, AJAX filtering, variable products and keyboard/lightbox behaviour on the actual storefront, and compare cold/warm network waterfalls.

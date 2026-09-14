@@ -6,400 +6,398 @@
 (function () {
     'use strict';
 
-    function initArchiveMediaSwap() {
-        var connection = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
-        var saveDataEnabled = !!(connection && connection.saveData);
-        var effectiveType = connection && connection.effectiveType ? String(connection.effectiveType).toLowerCase() : '';
-        var slowConnection = effectiveType === 'slow-2g' || effectiveType === '2g' || effectiveType === '3g';
+    var connection = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
+    var effectiveType = connection && connection.effectiveType ? String(connection.effectiveType).toLowerCase() : '';
+    if ((connection && connection.saveData) || /^(slow-2g|2g|3g)$/.test(effectiveType)) return;
 
-        if (saveDataEnabled || slowConnection) {
-            return;
-        }
+    var states = new Map();
+    var reducedMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    var desktopHover = window.matchMedia && window.matchMedia('(hover: hover) and (pointer: fine)').matches;
+    var imageDelay = 4000;
+    if (typeof tvpgArchiveParams !== 'undefined' && tvpgArchiveParams.settings) {
+        var delay = parseInt(tvpgArchiveParams.settings.image_delay, 10);
+        if (delay >= 1 && delay <= 30) imageDelay = delay * 1000;
+    }
 
-        document.querySelectorAll('.product, .product-small').forEach(function (productCard) {
-            var existing = productCard.querySelector('.tvpg-loop-media');
-            if (existing) return;
-
-            var template = productCard.querySelector('.tvpg-loop-secondary-template');
-            if (!template || !template.innerHTML.trim()) return;
-
-            var imageTarget = productCard.querySelector('.box-image .image-fade_in_back, .box-image a, .woocommerce-LoopProduct-link, a.woocommerce-LoopProduct-link');
-            if (!imageTarget) return;
-
-            var primaryWrap = document.createElement('div');
-            primaryWrap.className = 'tvpg-loop-primary-media';
-            while (imageTarget.firstChild) {
-                primaryWrap.appendChild(imageTarget.firstChild);
-            }
-
-            if (!primaryWrap.firstChild) return;
-
-            var secondaryWrap = document.createElement('div');
-            secondaryWrap.className = 'tvpg-loop-secondary-media';
-            secondaryWrap.setAttribute('aria-hidden', 'true');
-            secondaryWrap.innerHTML = template.innerHTML;
-
-            var container = document.createElement('div');
-            container.className = 'tvpg-loop-media';
-            container.setAttribute('data-tvpg-loop-media', '1');
-            container.appendChild(primaryWrap);
-            container.appendChild(secondaryWrap);
-
-            imageTarget.appendChild(container);
-        });
-
-        var cards = document.querySelectorAll('.tvpg-loop-media');
-        if (!cards.length) return;
-
-        function setImportantStyles(el, styles) {
-            if (!el) return;
-            Object.keys(styles).forEach(function (prop) {
-                el.style.setProperty(prop, styles[prop], 'important');
-            });
-        }
-
-        function disableThemeEqualize(grid) {
-            if (!grid || !grid.querySelector('.tvpg-has-loop-media')) return;
-            grid.classList.remove('equalize-box');
-            grid.classList.remove('has-equal-box-heights');
-
-            grid.querySelectorAll('.col-inner, .product-small.box').forEach(function (el) {
-                el.style.setProperty('height', 'auto', 'important');
-                el.style.setProperty('min-height', '0', 'important');
-            });
-        }
-
-        function runEqualizeCleanup() {
-            document.querySelectorAll('.products').forEach(function (grid) {
-                disableThemeEqualize(grid);
-            });
-        }
-
-        runEqualizeCleanup();
-        window.addEventListener('load', runEqualizeCleanup, { passive: true });
-
-        cards.forEach(function (card) {
-            var productCard = card.closest('.product, .product-small');
-            if (productCard) {
-                productCard.classList.add('tvpg-has-loop-media');
-            }
-
-            var primaryMedia = card.querySelector('.tvpg-loop-primary-media');
-            var secondaryMedia = card.querySelector('.tvpg-loop-secondary-media');
-            if (primaryMedia) {
-                setImportantStyles(card, {
-                    display: 'block',
-                    position: 'relative',
-                    width: '100%'
-                });
-                setImportantStyles(primaryMedia, {
-                    opacity: '1',
-                    visibility: 'visible',
-                    display: 'block',
-                    position: 'relative',
-                    'z-index': '2'
-                });
-                primaryMedia.querySelectorAll('img').forEach(function (img) {
-                    setImportantStyles(img, {
-                        display: 'block',
-                        opacity: '1',
-                        visibility: 'visible',
-                        position: 'relative',
-                        'z-index': '2',
-                        width: '100%',
-                        height: 'auto'
-                    });
-                });
-            }
-            if (secondaryMedia) {
-                setImportantStyles(secondaryMedia, {
-                    opacity: '0',
-                    visibility: 'hidden',
-                    position: 'absolute',
-                    inset: '0',
-                    'z-index': '3'
-                });
-            }
-
-            var imageWrap = card.parentElement;
-            if (imageWrap) {
-                imageWrap.querySelectorAll('img.back-image').forEach(function (img) {
-                    if (img && img.parentNode) {
-                        img.parentNode.removeChild(img);
-                    }
-                });
-            }
-        });
-
-        var reducedMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-        var supportsDesktopHover = window.matchMedia && window.matchMedia('(hover: hover) and (pointer: fine)').matches;
-        var archiveCycleTimers = new WeakMap();
-        var archiveCycleState = new WeakMap();
-        var archiveFadeOutTimers = new WeakMap();
-        var archiveEnterTimers = new WeakMap();
-        var visibleImageCards = new Set();
-        var maxConcurrentImageCycles = 3;
-        var archiveEnterDelay = 220;
-        var archiveImageDelay = 4000;
-        if (typeof tvpgArchiveParams !== 'undefined' && tvpgArchiveParams.settings && tvpgArchiveParams.settings.image_delay) {
-            var parsedDelay = parseInt(tvpgArchiveParams.settings.image_delay, 10);
-            if (!isNaN(parsedDelay) && parsedDelay >= 1 && parsedDelay <= 30) {
-                archiveImageDelay = parsedDelay * 1000;
-            }
-        }
-
-        function getProviderFromIframe(iframe) {
-            var src = iframe.getAttribute('src') || iframe.getAttribute('data-src') || '';
-            if (src.indexOf('youtube') !== -1) return 'youtube';
-            if (src.indexOf('vimeo') !== -1) return 'vimeo';
-            return null;
-        }
-
-        function playMedia(card) {
-            var mediaWrap = card.querySelector('.tvpg-loop-secondary-media');
-            var primaryMedia = card.querySelector('.tvpg-loop-primary-media');
-            if (!mediaWrap || !primaryMedia) return;
-
-            var pendingFadeOut = archiveFadeOutTimers.get(card);
-            if (pendingFadeOut) {
-                clearTimeout(pendingFadeOut);
-                archiveFadeOutTimers.delete(card);
-            }
-
-            card.classList.add('tvpg-loop-active');
-            var host = card.closest('.product-small, .product, li.product');
-            if (host) host.classList.add('tvpg-loop-active');
-            setImportantStyles(primaryMedia, {
-                opacity: '0',
-                visibility: 'hidden'
-            });
-            setImportantStyles(mediaWrap, {
-                opacity: '1',
-                visibility: 'visible'
-            });
-            var video = mediaWrap.querySelector('video');
-            var iframe = mediaWrap.querySelector('iframe');
-
-            if (video) {
-                var p = video.play();
-                if (p && p.catch) p.catch(function () { });
-                return;
-            }
-
-            if (iframe && iframe.contentWindow) {
-                var provider = getProviderFromIframe(iframe);
-
-                if (!iframe.getAttribute('src') && iframe.getAttribute('data-src')) {
-                    iframe.addEventListener('load', function () {
-                        playMedia(card);
-                    }, { once: true });
-                    iframe.setAttribute('src', iframe.getAttribute('data-src'));
-                    iframe.removeAttribute('data-src');
-                    return;
-                }
-
-                if (provider === 'youtube') {
-                    iframe.contentWindow.postMessage('{"event":"command","func":"mute","args":[]}', 'https://www.youtube.com');
-                    iframe.contentWindow.postMessage('{"event":"command","func":"playVideo","args":[]}', 'https://www.youtube.com');
-                } else if (provider === 'vimeo') {
-                    iframe.contentWindow.postMessage('{"method":"setVolume", "value":0}', 'https://player.vimeo.com');
-                    iframe.contentWindow.postMessage('{"method":"play"}', 'https://player.vimeo.com');
-                }
-            }
-        }
-
-        function pauseMedia(card) {
-            var mediaWrap = card.querySelector('.tvpg-loop-secondary-media');
-            var primaryMedia = card.querySelector('.tvpg-loop-primary-media');
-            if (!mediaWrap || !primaryMedia) return;
-
-            card.classList.remove('tvpg-loop-active');
-            var host = card.closest('.product-small, .product, li.product');
-            if (host) host.classList.remove('tvpg-loop-active');
-            setImportantStyles(primaryMedia, {
-                opacity: '1',
-                visibility: 'visible'
-            });
-            setImportantStyles(mediaWrap, {
-                opacity: '0',
-                visibility: 'visible'
-            });
-            var fadeOutTimer = setTimeout(function () {
-                if (!card.classList.contains('tvpg-loop-active')) {
-                    setImportantStyles(mediaWrap, {
-                        visibility: 'hidden'
-                    });
-                }
-                archiveFadeOutTimers.delete(card);
-            }, 380);
-            archiveFadeOutTimers.set(card, fadeOutTimer);
-            var video = mediaWrap.querySelector('video');
-            var iframe = mediaWrap.querySelector('iframe');
-
-            if (video) {
-                video.pause();
-                return;
-            }
-
-            if (iframe && iframe.contentWindow) {
-                var provider = getProviderFromIframe(iframe);
-                if (provider === 'youtube') {
-                    iframe.contentWindow.postMessage('{"event":"command","func":"pauseVideo","args":[]}', 'https://www.youtube.com');
-                } else if (provider === 'vimeo') {
-                    iframe.contentWindow.postMessage('{"method":"pause"}', 'https://player.vimeo.com');
-                }
-            }
-        }
-
-        function hasSecondaryVideoMedia(card) {
-            var mediaWrap = card.querySelector('.tvpg-loop-secondary-media');
-            if (!mediaWrap) return false;
-            return !!mediaWrap.querySelector('video, iframe');
-        }
-
-        function stopArchiveImageCycle(card) {
-            var timer = archiveCycleTimers.get(card);
-            if (timer) {
-                clearTimeout(timer);
-                archiveCycleTimers.delete(card);
-            }
-            archiveCycleState.delete(card);
-            pauseMedia(card);
-        }
-
-        function startArchiveImageCycle(card) {
-            if (archiveCycleTimers.get(card)) return;
-
-            archiveCycleState.set(card, false);
-            pauseMedia(card);
-
-            function tick() {
-                if (!document.body.contains(card)) {
-                    stopArchiveImageCycle(card);
-                    return;
-                }
-
-                var showSecondary = archiveCycleState.get(card);
-                if (showSecondary) {
-                    pauseMedia(card);
-                    archiveCycleState.set(card, false);
-                } else {
-                    playMedia(card);
-                    archiveCycleState.set(card, true);
-                }
-
-                archiveCycleTimers.set(card, setTimeout(tick, archiveImageDelay));
-            }
-
-            archiveCycleTimers.set(card, setTimeout(tick, archiveImageDelay));
-        }
-
-        function rebalanceArchiveImageCycles() {
-            var running = 0;
-            visibleImageCards.forEach(function (card) {
-                if (archiveCycleTimers.get(card)) {
-                    running++;
-                }
-            });
-
-            if (running > maxConcurrentImageCycles) {
-                var toStop = running - maxConcurrentImageCycles;
-                visibleImageCards.forEach(function (card) {
-                    if (toStop <= 0) return;
-                    if (archiveCycleTimers.get(card)) {
-                        stopArchiveImageCycle(card);
-                        toStop--;
-                    }
-                });
-                return;
-            }
-
-            if (running < maxConcurrentImageCycles) {
-                var capacity = maxConcurrentImageCycles - running;
-                visibleImageCards.forEach(function (card) {
-                    if (capacity <= 0) return;
-                    if (!archiveCycleTimers.get(card)) {
-                        startArchiveImageCycle(card);
-                        capacity--;
-                    }
-                });
-            }
-        }
-
-        function clearArchiveEnterTimer(card) {
-            var timer = archiveEnterTimers.get(card);
-            if (timer) {
-                clearTimeout(timer);
-                archiveEnterTimers.delete(card);
-            }
-        }
-
-        cards.forEach(function (card) {
-            var mediaWrap = card.querySelector('.tvpg-loop-secondary-media');
-            var primaryMedia = card.querySelector('.tvpg-loop-primary-media');
-            if (!mediaWrap || !primaryMedia) return;
-
-            var hoverTarget = card.closest('.product-small, .product, li.product') || card;
-            card.classList.remove('tvpg-loop-active');
-            hoverTarget.classList.remove('tvpg-loop-active');
-
-            hoverTarget.addEventListener('mouseenter', function () {
-                playMedia(card);
-            });
-
-            hoverTarget.addEventListener('mouseleave', function () {
-                pauseMedia(card);
-            });
-
-            if (!supportsDesktopHover && hasSecondaryVideoMedia(card)) {
-                hoverTarget.addEventListener('touchstart', function () {
-                    playMedia(card);
-                }, { passive: true });
-
-                hoverTarget.addEventListener('touchend', function () {
-                    // Keep current state; viewport observer controls pause/reset.
-                }, { passive: true });
-            }
-
-            pauseMedia(card);
-        });
-
-        if (reducedMotion || supportsDesktopHover || !('IntersectionObserver' in window)) return;
-
-        var observer = new IntersectionObserver(function (entries) {
-            entries.forEach(function (entry) {
-                if (entry.isIntersecting && entry.intersectionRatio >= 0.6) {
-                    if (hasSecondaryVideoMedia(entry.target)) {
-                        clearArchiveEnterTimer(entry.target);
-                        archiveEnterTimers.set(entry.target, setTimeout(function () {
-                            playMedia(entry.target);
-                            archiveEnterTimers.delete(entry.target);
-                        }, archiveEnterDelay));
-                    } else {
-                        visibleImageCards.add(entry.target);
-                        clearArchiveEnterTimer(entry.target);
-                        archiveEnterTimers.set(entry.target, setTimeout(function () {
-                            rebalanceArchiveImageCycles();
-                            archiveEnterTimers.delete(entry.target);
-                        }, archiveEnterDelay));
-                    }
-                } else {
-                    clearArchiveEnterTimer(entry.target);
-                    if (hasSecondaryVideoMedia(entry.target)) {
-                        pauseMedia(entry.target);
-                    } else {
-                        visibleImageCards.delete(entry.target);
-                        stopArchiveImageCycle(entry.target);
-                        rebalanceArchiveImageCycles();
-                    }
-                }
-            });
-        }, { threshold: [0, 0.6] });
-
-        cards.forEach(function (card) {
-            observer.observe(card);
+    function styles(element, values) {
+        Object.keys(values).forEach(function (key) {
+            element.style.setProperty(key, values[key], 'important');
         });
     }
 
-    initArchiveMediaSwap();
+    function within(root, selector) {
+        var matches = Array.prototype.slice.call(root.querySelectorAll(selector));
+        if (root.nodeType === 1 && root.matches(selector)) matches.unshift(root);
+        return matches;
+    }
+
+    // A loop link may also contain the title, price and badges. Never wrap those.
+    function imageOnly(element) {
+        return !!element.querySelector('img') && Array.prototype.every.call(element.childNodes, function (node) {
+            if (node.nodeType === 3) return !node.textContent.trim();
+            if (node.nodeType === 8) return true;
+            if (node.nodeType !== 1) return false;
+            if (node.matches('img, source')) return true;
+            return node.matches('a, picture, div, span') && imageOnly(node);
+        });
+    }
+
+    function wrapFallback(root) {
+        within(root, '.product, .product-small').forEach(function (product) {
+            if (product.querySelector('.tvpg-loop-media')) return;
+            var template = product.querySelector('.tvpg-loop-secondary-template');
+            if (!template || !template.innerHTML.trim()) return;
+            var targets = product.querySelectorAll('.box-image .image-fade_in_back, .box-image a, .woocommerce-LoopProduct-link');
+            var target = Array.prototype.find.call(targets, imageOnly);
+            var imageRoot = null;
+            if (!target) {
+                // Standard WooCommerce links often enclose both media and product details.
+                // Find the front image, retaining its picture sources/image-only wrapper.
+                Array.prototype.some.call(targets, function (candidate) {
+                    var image = candidate.querySelector('img:not(.back-image)');
+                    if (!image) return false;
+                    target = candidate;
+                    imageRoot = image.closest('picture') || image;
+                    while (imageRoot.parentElement !== target && imageRoot.parentElement && imageOnly(imageRoot.parentElement)) {
+                        imageRoot = imageRoot.parentElement;
+                    }
+                    return true;
+                });
+            }
+            if (!target) return;
+            var primary = document.createElement('div');
+            primary.className = 'tvpg-loop-primary-media';
+            var secondary = document.createElement('div');
+            secondary.className = 'tvpg-loop-secondary-media';
+            secondary.setAttribute('aria-hidden', 'true');
+            secondary.innerHTML = template.innerHTML;
+            var card = document.createElement('div');
+            card.className = 'tvpg-loop-media';
+            card.setAttribute('data-tvpg-loop-media', '1');
+            card.appendChild(primary);
+            card.appendChild(secondary);
+            if (imageRoot) {
+                // Keep the original media position and every title/price/badge node intact.
+                imageRoot.parentNode.insertBefore(card, imageRoot);
+                primary.appendChild(imageRoot);
+                // Flatsome can put its alternate image alongside the front image.
+                var backImage = card.nextElementSibling;
+                while (backImage && (backImage.matches('img.back-image') ||
+                    (backImage.matches('picture') && imageOnly(backImage) && !backImage.querySelector('img:not(.back-image)')))) {
+                    primary.appendChild(backImage);
+                    backImage = card.nextElementSibling;
+                }
+            } else {
+                while (target.firstChild) primary.appendChild(target.firstChild);
+                target.appendChild(card);
+            }
+        });
+    }
+
+    function eligible(state) {
+        return !state.destroyed && state.card.isConnected && !document.hidden && state.visible;
+    }
+
+    function reveal(state, active) {
+        state.card.classList.toggle('tvpg-loop-active', active);
+        state.host.classList.toggle('tvpg-loop-active', active);
+        styles(state.primary, { opacity: active ? '0' : '1', visibility: active ? 'hidden' : 'visible' });
+        styles(state.secondary, { opacity: active ? '1' : '0', visibility: active ? 'visible' : 'hidden' });
+    }
+
+    function iframeCommand(state, playing) {
+        var frame = state.media;
+        if (!frame.contentWindow || !frame.getAttribute('src')) return;
+        var url;
+        try { url = new URL(frame.getAttribute('src'), document.baseURI); } catch (error) { return; }
+        var youtube = /(^|\.)youtube(?:-nocookie)?\.com$/.test(url.hostname);
+        var vimeo = url.hostname === 'player.vimeo.com';
+        if (youtube) {
+            if (playing) frame.contentWindow.postMessage('{"event":"command","func":"mute","args":[]}', url.origin);
+            frame.contentWindow.postMessage(JSON.stringify({ event: 'command', func: playing ? 'playVideo' : 'pauseVideo', args: [] }), url.origin);
+        } else if (vimeo) {
+            if (playing) frame.contentWindow.postMessage('{"method":"setVolume","value":0}', url.origin);
+            frame.contentWindow.postMessage(JSON.stringify({ method: playing ? 'play' : 'pause' }), url.origin);
+        }
+    }
+
+    function pause(state) {
+        state.desired = false;
+        state.request++;
+        clearTimeout(state.readyTimer);
+        reveal(state, false);
+        if (state.kind === 'video') state.media.pause();
+        if (state.kind === 'iframe') iframeCommand(state, false);
+    }
+
+    function fail(state) {
+        state.failed = true;
+        stop(state);
+    }
+
+    function promote(element, attributes) {
+        var changed = false;
+        attributes.forEach(function (attribute) {
+            var value = element.getAttribute('data-' + attribute);
+            if (value !== null) {
+                element.setAttribute(attribute, value);
+                element.removeAttribute('data-' + attribute);
+                changed = true;
+            }
+        });
+        return changed;
+    }
+
+    function activate(state) {
+        if (state.activated) return;
+        state.activated = true;
+        var media = state.media;
+        if (state.kind === 'video') {
+            // Existing eager markup remains supported, but playback belongs to this controller.
+            media.autoplay = false;
+            media.removeAttribute('autoplay');
+            media.muted = true;
+            media.playsInline = true;
+            var changed = promote(media, ['poster', 'src']);
+            media.querySelectorAll('source').forEach(function (source) {
+                changed = promote(source, ['src']) || changed;
+            });
+            if (changed) media.load();
+        } else if (state.kind === 'img') {
+            // sizes precedes srcset/src to avoid an unnecessary default-size request.
+            state.secondary.querySelectorAll('picture source').forEach(function (source) {
+                promote(source, ['sizes', 'srcset']);
+            });
+            promote(media, ['sizes', 'srcset', 'src']);
+        } else if (!media.getAttribute('src') && media.getAttribute('data-src')) {
+            var url = new URL(media.getAttribute('data-src'), document.baseURI);
+            // Late navigation must not autoplay independently of our desired state.
+            url.searchParams.set('autoplay', '0');
+            media.setAttribute('src', url.href);
+            media.removeAttribute('data-src');
+        }
+    }
+
+    function ready(state) {
+        if (!state.desired || !eligible(state) || state.failed) return;
+        clearTimeout(state.readyTimer);
+        reveal(state, true);
+    }
+
+    function play(state) {
+        if (!eligible(state) || state.failed || state.desired) return;
+        state.desired = true;
+        var request = ++state.request;
+        state.readyTimer = setTimeout(function () {
+            if (state.desired && state.request === request) fail(state);
+        }, 15000);
+        try {
+            activate(state);
+            if (state.kind === 'video') {
+                var promise = state.media.play();
+                if (promise && promise.then) {
+                    promise.then(function () {
+                        if (!state.desired || !eligible(state)) state.media.pause();
+                        else if (state.request === request) ready(state);
+                    }, function () {
+                        // Autoplay rejection can be retried by a later hover/touch.
+                        if (state.request === request) pause(state);
+                    });
+                }
+            } else if (state.kind === 'img') {
+                if (state.media.complete && state.media.naturalWidth > 0) ready(state);
+            } else if (state.loaded) {
+                iframeCommand(state, true);
+                ready(state);
+            }
+        } catch (error) {
+            fail(state);
+        }
+    }
+
+    function stop(state) {
+        clearTimeout(state.enterTimer);
+        clearTimeout(state.cycleTimer);
+        state.enterTimer = null;
+        state.cycleTimer = null;
+        pause(state);
+    }
+
+    function cycle(state) {
+        state.cycleTimer = setTimeout(function tick() {
+            if (!eligible(state) || state.failed) { stop(state); return; }
+            if (state.desired) pause(state);
+            else play(state);
+            state.cycleTimer = setTimeout(tick, imageDelay);
+        }, imageDelay);
+    }
+
+    function scheduleVisible() {
+        var imageCycles = 0;
+        states.forEach(function (state) {
+            if (state.kind === 'img' && (state.cycleTimer || state.enterTimer)) imageCycles++;
+        });
+        states.forEach(function (state) {
+            if (!eligible(state) || state.failed || state.enterTimer) return;
+            if (desktopHover || reducedMotion) return;
+            if (state.kind === 'img') {
+                if (state.cycleTimer || imageCycles >= 3) return;
+                imageCycles++;
+            } else if (state.desired) return;
+            // Only image cycles are limited; every visible video may play at once.
+            state.enterTimer = setTimeout(function () {
+                state.enterTimer = null;
+                if (!eligible(state)) return;
+                if (state.kind === 'img') cycle(state);
+                else play(state);
+            }, 220);
+        });
+    }
+
+    function updateVisibility(state, visible) {
+        state.visible = visible;
+        if (!visible) stop(state);
+    }
+
+    var observer = 'IntersectionObserver' in window ? new IntersectionObserver(function (entries) {
+        entries.forEach(function (entry) {
+            var state = states.get(entry.target);
+            if (state) updateVisibility(state, entry.isIntersecting && entry.intersectionRatio >= 0.6);
+        });
+        scheduleVisible();
+    }, { threshold: [0, 0.6] }) : null;
+
+    function inViewport(card) {
+        var rect = card.getBoundingClientRect();
+        var width = Math.max(0, Math.min(rect.right, window.innerWidth) - Math.max(rect.left, 0));
+        var height = Math.max(0, Math.min(rect.bottom, window.innerHeight) - Math.max(rect.top, 0));
+        return rect.width > 0 && rect.height > 0 && width * height / (rect.width * rect.height) >= 0.6;
+    }
+
+    function listen(state, element, event, callback) {
+        element.addEventListener(event, callback, { passive: true });
+        state.cleanup.push(function () { element.removeEventListener(event, callback); });
+    }
+
+    function initArchive(root) {
+        root = root || document;
+        wrapFallback(root);
+        within(root, '.tvpg-loop-media').forEach(function (card) {
+            if (states.has(card)) return;
+            var primary = card.querySelector('.tvpg-loop-primary-media');
+            var secondary = card.querySelector('.tvpg-loop-secondary-media');
+            var media = secondary && secondary.querySelector('video, iframe, img');
+            if (!primary || !media) return;
+            var host = card.closest('.product-small, .product') || card;
+            var state = {
+                card: card, primary: primary, secondary: secondary, media: media, host: host,
+                kind: media.tagName.toLowerCase(), desired: false, request: 0,
+                visible: observer ? false : inViewport(card), cleanup: [],
+                loaded: media.tagName.toLowerCase() === 'iframe' && !!media.getAttribute('src')
+            };
+            states.set(card, state);
+            host.classList.add('tvpg-has-loop-media');
+            // Restrict layout repair to our own image-only media, never the grid/theme boxes.
+            if (imageOnly(primary)) {
+                styles(card, { display: 'block', position: 'relative', width: '100%' });
+                styles(primary, { display: 'block', position: 'relative', 'z-index': '2' });
+                primary.querySelectorAll('img:not(.back-image)').forEach(function (img) {
+                    styles(img, { display: 'block', opacity: '1', visibility: 'visible', position: 'relative', 'z-index': '2', width: '100%', height: 'auto' });
+                });
+            }
+            styles(secondary, { position: 'absolute', inset: '0', 'z-index': '3' });
+            listen(state, media, 'error', function () { fail(state); });
+            if (state.kind === 'video') {
+                media.autoplay = false;
+                media.removeAttribute('autoplay');
+                listen(state, media, 'playing', function () {
+                    if (!state.desired || !eligible(state)) media.pause();
+                    else ready(state);
+                });
+            } else {
+                listen(state, media, 'load', function () {
+                    if (state.kind === 'iframe') {
+                        state.loaded = true;
+                        iframeCommand(state, state.desired && eligible(state) && !state.failed);
+                    }
+                    if (state.kind !== 'img' || media.naturalWidth > 0) ready(state);
+                });
+            }
+            function manualPlay() {
+                updateVisibility(state, inViewport(card));
+                play(state);
+            }
+            listen(state, host, 'mouseenter', function () { if (desktopHover) manualPlay(); });
+            listen(state, host, 'mouseleave', function () { if (desktopHover) stop(state); });
+            if (!desktopHover) listen(state, host, 'touchstart', manualPlay);
+            pause(state);
+            if (observer) observer.observe(card);
+        });
+        scheduleVisible();
+    }
+
+    function destroy(state) {
+        state.destroyed = true;
+        stop(state);
+        if (observer) observer.unobserve(state.card);
+        state.cleanup.forEach(function (cleanup) { cleanup(); });
+        states.delete(state.card);
+    }
+
+    document.addEventListener('visibilitychange', function () {
+        if (document.hidden) states.forEach(stop);
+        else {
+            states.forEach(function (state) { updateVisibility(state, inViewport(state.card)); });
+            scheduleVisible();
+        }
+    });
+    window.addEventListener('pagehide', function () { states.forEach(stop); });
+    window.addEventListener('pageshow', function () {
+        states.forEach(function (state) { updateVisibility(state, inViewport(state.card)); });
+        scheduleVisible();
+    });
+
+    // Older browsers still need offscreen cleanup, including on desktop/reduced motion.
+    if (!observer) {
+        var scrollPending = false;
+        var checkViewport = function () {
+            if (scrollPending) return;
+            scrollPending = true;
+            window.requestAnimationFrame(function () {
+                scrollPending = false;
+                states.forEach(function (state) { updateVisibility(state, inViewport(state.card)); });
+                scheduleVisible();
+            });
+        };
+        window.addEventListener('scroll', checkViewport, { passive: true, capture: true });
+        window.addEventListener('resize', checkViewport, { passive: true });
+    }
+
+    // Public, idempotent entry point for integrations that insert a known subtree.
+    window.tvpgInitArchive = initArchive;
+    function boot() {
+        initArchive(document);
+        if (!('MutationObserver' in window) || !document.body) return;
+        new MutationObserver(function (records) {
+            var roots = new Set();
+            var removed = false;
+            records.forEach(function (record) {
+                if (record.removedNodes.length) removed = true;
+                record.addedNodes.forEach(function (node) {
+                    if (node.nodeType !== 1 || !node.isConnected) return;
+                    // Template-only insertions need their product host considered too.
+                    roots.add(node.closest('.product, .product-small') || node);
+                });
+            });
+            if (removed) states.forEach(function (state) {
+                if (!state.card.isConnected || !state.card.contains(state.media)) destroy(state);
+            });
+            roots.forEach(function (root) {
+                if (!Array.from(roots).some(function (other) { return other !== root && other.contains(root); })) initArchive(root);
+            });
+            if (removed) scheduleVisible();
+        }).observe(document.body, { childList: true, subtree: true });
+    }
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot, { once: true });
+    else boot();
 })();

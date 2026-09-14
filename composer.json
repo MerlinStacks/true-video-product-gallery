@@ -20,7 +20,12 @@
         ]
     },
     "scripts": {
-        "test": "phpunit",
+        "test": [
+            "@test:unit",
+            "@test:previews"
+        ],
+        "test:unit": "phpunit --do-not-cache-result",
+        "test:previews": "phpunit --no-configuration --do-not-cache-result --bootstrap tests/preview-generator/support.php tests/preview-generator/GeneratorChecks.php",
         "test:coverage": "phpunit --coverage-html coverage",
         "lint": "phpcs"
     },

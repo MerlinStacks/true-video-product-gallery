@@ -438,6 +438,15 @@ class TVPG_Admin {
 						<p class="description"><?php esc_html_e( 'Supports YouTube, Vimeo, MP4, WebM, and OGG.', 'true-video-product-gallery' ); ?></p>
 					</div>
 
+					<div class="tvpg-form-group">
+						<h4><?php esc_html_e( 'Automatic Category Preview', 'true-video-product-gallery' ); ?></h4>
+						<p class="description"><?php esc_html_e( 'Shop and category previews are generated automatically from your existing product video when archive swapping is enabled. No second upload is needed. Generation supports local WordPress video uploads only and requires FFmpeg and background processing on your host. The original video is used until a preview is ready or if generation is unavailable. Simultaneous video playback is unaffected.', 'true-video-product-gallery' ); ?></p>
+						<?php if ( is_callable( array( 'TVPG_Preview_Generator', 'get_status' ) ) ) : ?>
+							<?php $preview_status = TVPG_Preview_Generator::get_status( $post->ID ); ?>
+							<p class="description tvpg-preview-status"><strong><?php esc_html_e( 'Saved video status:', 'true-video-product-gallery' ); ?></strong> <?php echo esc_html( $preview_status['message'] ?? '' ); ?></p>
+						<?php endif; ?>
+					</div>
+
 					<?php $video_thumb = get_post_meta( $post->ID, '_tvpg_video_thumb_url', true ); ?>
 					<div class="tvpg-form-group">
 						<label for="tvpg_video_thumb_url"><?php esc_html_e( 'Custom Thumbnail', 'true-video-product-gallery' ); ?></label>

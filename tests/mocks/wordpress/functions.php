@@ -6,7 +6,7 @@
  */
 
 function __( $text, $domain = 'default' ) {
-	return $text;
+	return $GLOBALS['tvpg_test_translations'][ $text ] ?? $text;
 }
 
 function esc_attr__( $text, $domain = 'default' ) {
@@ -108,6 +108,7 @@ function wp_strip_all_tags( $text ) {
 }
 
 function wp_kses( $string, $allowed_html ) {
+	$GLOBALS['tvpg_test_kses_input'] = $string;
 	return strip_tags( $string );
 }
 
@@ -186,7 +187,7 @@ function get_the_date( $format, $post_id ) {
 }
 
 function get_post_meta( $post_id, $key, $single = false ) {
-	return '';
+	return $GLOBALS['tvpg_test_meta'][ $post_id ][ $key ] ?? '';
 }
 
 function wp_get_attachment_image( $attachment_id, $size, $icon, $attr ) {
