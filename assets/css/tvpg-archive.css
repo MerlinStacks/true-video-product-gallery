@@ -66,6 +66,27 @@
     height: 100%;
 }
 
+/*
+ * Equal-height grids reserve image space with padding on .box-image. Our
+ * normal-flow primary image already supplies that height, so keeping both
+ * pushes wrapped images down by a full row. Scope the reset to wrapped boxes,
+ * including server-rendered wrappers before the archive controller starts.
+ */
+.has-equal-box-heights .tvpg-has-loop-media .box-image,
+.has-equal-box-heights .box-image:has(.tvpg-loop-media) {
+    padding-top: 0 !important;
+}
+
+.has-equal-box-heights .box-image .tvpg-loop-media {
+    height: auto;
+}
+
+.has-equal-box-heights .box-image .tvpg-loop-primary-media img:not(.back-image) {
+    position: relative !important;
+    display: block;
+    height: auto !important;
+}
+
 /* Flatsome hover back-image conflicts with TVPG swap layers. */
 .tvpg-has-loop-media .tvpg-loop-primary-media img.back-image,
 .product.tvpg-has-loop-media .image-fade_in_back > img.back-image,

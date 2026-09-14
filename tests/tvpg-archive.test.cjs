@@ -299,6 +299,38 @@ for (const variant of ['mixed images', 'mixed picture', 'image-only Flatsome']) 
     });
 }
 
+for (const asset of ['tvpg-archive.css', 'tvpg-archive.min.css']) {
+    test(`Flatsome equal-height padding only resets wrapped image boxes: ${asset}`, () => {
+        const wrapped = `<div class="tvpg-loop-media"><div class="tvpg-loop-primary-media"><img class="front" src="front.jpg"></div><div class="tvpg-loop-secondary-media"><img src="secondary.jpg"></div></div>`;
+        const box = contents => `<div class="product-small box"><div class="box-image"><div class="image-fade_in_back"><a>${contents}</a></div></div><div class="box-text">Product</div></div>`;
+        const dom = new JSDOM(`<div class="products has-equal-box-heights equalize-box">${box(wrapped).repeat(5)}${box('<img class="plain" src="plain.jpg">')}</div>`);
+        const { window } = dom;
+        const { document } = window;
+        try {
+            const theme = document.createElement('style');
+            theme.textContent = '.has-equal-box-heights .box-image { padding-top: 100%; } .has-equal-box-heights .box-image img { position: absolute; height: 100%; top: 0; }';
+            document.head.appendChild(theme);
+            const style = document.createElement('style');
+            style.textContent = readFileSync(require('node:path').join(__dirname, '../assets/css/', asset), 'utf8');
+            document.head.appendChild(style);
+            const boxes = [...document.querySelectorAll('.box-image')];
+            // Server-rendered wrappers must work even before JS/lazy-load starts.
+            boxes.slice(0, 5).forEach(box => {
+                assert.equal(window.getComputedStyle(box).paddingTop, '0px');
+                assert.equal(window.getComputedStyle(box.querySelector('.front')).position, 'relative');
+                assert.equal(window.getComputedStyle(box.querySelector('.front')).height, 'auto');
+                assert.equal(window.getComputedStyle(box.querySelector('.tvpg-loop-media')).height, 'auto');
+                assert.equal(window.getComputedStyle(box.querySelector('.tvpg-loop-secondary-media')).position, 'absolute');
+            });
+            assert.equal(window.getComputedStyle(boxes[5]).paddingTop, '100%');
+            assert.equal(window.getComputedStyle(document.querySelector('.plain')).position, 'absolute');
+            assert.ok(document.querySelector('.products').classList.contains('equalize-box'));
+        } finally {
+            window.close();
+        }
+    });
+}
+
 test('autoplay rejection keeps primary visible and allows a later manual retry', async () => {
     const item = card();
     item.media.play = () => Promise.reject(new Error('NotAllowedError'));
