@@ -32,14 +32,16 @@ class TVPG_Gallery_Renderer {
 		if ( $product->is_type( 'variable' ) ) {
 			return true;
 		}
-		return count( self::assemble_slides(
-			$product->get_image_id(),
-			$product->get_gallery_image_ids(),
-			get_post_meta( $product->get_id(), '_tvpg_video_url', true ),
-			TVPG_Settings::get( 'video_position' ),
-			$product,
-			self::get_core_media_items( $product )
-		) ) > 1;
+		return count(
+			self::assemble_slides(
+				$product->get_image_id(),
+				$product->get_gallery_image_ids(),
+				get_post_meta( $product->get_id(), '_tvpg_video_url', true ),
+				TVPG_Settings::get( 'video_position' ),
+				$product,
+				self::get_core_media_items( $product )
+			)
+		) > 1;
 	}
 
 	/**
@@ -242,7 +244,7 @@ class TVPG_Gallery_Renderer {
 	 * @return void
 	 */
 	private static function render_main_slider( $slides ) {
-		$allowed_html    = TVPG_Video_Embed::get_allowed_html();
+		$allowed_html = TVPG_Video_Embed::get_allowed_html();
 		// BUG-H3 fix: wrapper div is now opened/closed in render().
 		?>
 			<div class="swiper tvpg-main-slider" role="group" aria-roledescription="<?php esc_attr_e( 'carousel', 'true-video-product-gallery' ); ?>">
@@ -267,13 +269,13 @@ class TVPG_Gallery_Renderer {
 								} else {
 									// Prioritise only the visible slide, including video-first galleries.
 									$img_attrs = array(
-										'sizes' => '(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 600px',
-										'loading' => 'lazy',
+										'sizes'         => '(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 600px',
+										'loading'       => 'lazy',
 										'fetchpriority' => 'low',
-										'decoding' => 'async',
+										'decoding'      => 'async',
 									);
 									if ( 0 === $slide_index ) {
-										$img_attrs       = array(
+										$img_attrs = array(
 											'fetchpriority' => 'high',
 											'loading'  => 'eager',
 											'decoding' => 'sync',
@@ -306,7 +308,7 @@ class TVPG_Gallery_Renderer {
 	 * @return void
 	 */
 	private static function render_thumb_slider( $slides ) {
-		$allowed_html    = TVPG_Video_Embed::get_allowed_html();
+		$allowed_html = TVPG_Video_Embed::get_allowed_html();
 		// Single-slide strips are hidden by CSS; avoid generating unused thumbnails.
 		global $product;
 		if ( count( $slides ) <= 1 && ! ( $product instanceof WC_Product && $product->is_type( 'variable' ) ) ) {
@@ -327,7 +329,11 @@ class TVPG_Gallery_Renderer {
 							if ( ! empty( $slide['is_placeholder'] ) || 0 === $slide['id'] ) {
 								printf( '<img src="%s" alt="%s" />', esc_url( wc_placeholder_img_src( 'woocommerce_thumbnail' ) ), esc_attr__( 'Placeholder', 'true-video-product-gallery' ) );
 							} else {
-								$thumb_attrs = array( 'loading' => 'lazy', 'fetchpriority' => 'low', 'decoding' => 'async' );
+								$thumb_attrs = array(
+									'loading'       => 'lazy',
+									'fetchpriority' => 'low',
+									'decoding'      => 'async',
+								);
 								echo wp_get_attachment_image( $slide['id'], 'woocommerce_thumbnail', false, $thumb_attrs );
 							}
 						} elseif ( 'video' === $slide['type'] ) {

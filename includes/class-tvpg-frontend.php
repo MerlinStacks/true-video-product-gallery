@@ -32,7 +32,11 @@ class TVPG_Frontend {
 	 */
 	private $assets_enqueued = false;
 
-	/** @var bool Whether any gallery in this request requires Swiper. */
+	/**
+	 * Whether any gallery in this request requires Swiper.
+	 *
+	 * @var bool
+	 */
 	private $needs_slider = false;
 
 	/** Register background work on frontend, admin and cron requests. */
@@ -123,8 +127,8 @@ class TVPG_Frontend {
 	private function enqueue_gallery_assets( $needs_slider ) {
 		$this->needs_slider = $this->needs_slider || $needs_slider;
 		$needs_slider       = $this->needs_slider;
-		$suffix   = ( defined( 'SCRIPT_DEBUG' ) && SCRIPT_DEBUG ) ? '' : '.min';
-		$settings = TVPG_Settings::get_all();
+		$suffix             = ( defined( 'SCRIPT_DEBUG' ) && SCRIPT_DEBUG ) ? '' : '.min';
+		$settings           = TVPG_Settings::get_all();
 
 		if ( $needs_slider ) {
 			wp_enqueue_style( 'tvpg-swiper', TVPG_URL . 'assets/lib/swiper/swiper-slim.min.css', array(), TVPG_VERSION );
@@ -142,14 +146,14 @@ class TVPG_Frontend {
 
 		$style_deps = $needs_slider ? array( 'tvpg-swiper' ) : array();
 		if ( $needs_slider && wp_style_is( 'tvpg-frontend', 'registered' ) ) {
-			$registered = wp_styles()->registered['tvpg-frontend'];
+			$registered       = wp_styles()->registered['tvpg-frontend'];
 			$registered->deps = array_unique( array_merge( $registered->deps, $style_deps ) );
 		}
 		wp_enqueue_style( 'tvpg-frontend', TVPG_URL . 'assets/css/tvpg-frontend' . $suffix . '.css', $style_deps, TVPG_VERSION );
 
 		$script_deps = $needs_slider ? array( 'tvpg-swiper' ) : array();
 		if ( $needs_slider && wp_script_is( 'tvpg-frontend', 'registered' ) ) {
-			$registered = wp_scripts()->registered['tvpg-frontend'];
+			$registered       = wp_scripts()->registered['tvpg-frontend'];
 			$registered->deps = array_unique( array_merge( $registered->deps, $script_deps ) );
 		}
 		wp_enqueue_script(
@@ -206,7 +210,16 @@ class TVPG_Frontend {
 	private function enqueue_archive_assets() {
 		$suffix = ( defined( 'SCRIPT_DEBUG' ) && SCRIPT_DEBUG ) ? '' : '.min';
 		wp_enqueue_style( 'tvpg-archive', TVPG_URL . 'assets/css/tvpg-archive' . $suffix . '.css', array(), TVPG_VERSION );
-		wp_enqueue_script( 'tvpg-archive', TVPG_URL . 'assets/js/tvpg-archive' . $suffix . '.js', array(), TVPG_VERSION, array( 'strategy' => 'defer', 'in_footer' => true ) );
+		wp_enqueue_script(
+			'tvpg-archive',
+			TVPG_URL . 'assets/js/tvpg-archive' . $suffix . '.js',
+			array(),
+			TVPG_VERSION,
+			array(
+				'strategy'  => 'defer',
+				'in_footer' => true,
+			)
+		);
 		wp_localize_script( 'tvpg-archive', 'tvpgArchiveParams', array( 'settings' => TVPG_Settings::get_all() ) );
 	}
 
@@ -655,7 +668,7 @@ class TVPG_Frontend {
 		$original_product = null;
 
 		global $post, $product; // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedVariableFound
-		$target_id = $product_id ?: ( $product instanceof WC_Product ? $product->get_id() : get_the_ID() );
+		$target_id   = $product_id ? $product_id : ( $product instanceof WC_Product ? $product->get_id() : get_the_ID() );
 		$target_post = get_post( $target_id );
 		if ( ! $target_post || 'product' !== $target_post->post_type
 			|| ( 'publish' !== $target_post->post_status && ! current_user_can( 'read_post', $target_id ) )

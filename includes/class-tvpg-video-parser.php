@@ -301,7 +301,7 @@ class TVPG_Video_Parser {
 	 * @return bool
 	 */
 	private static function acquire_thumbnail_lock( $video_id, $purpose ) {
-		$key = 'tvpg_vimeo_' . $purpose . '_' . $video_id;
+		$key     = 'tvpg_vimeo_' . $purpose . '_' . $video_id;
 		$expires = get_option( $key );
 		if ( $expires && (int) $expires < time() ) {
 			delete_option( $key );
@@ -325,7 +325,13 @@ class TVPG_Video_Parser {
 				return;
 			}
 			$oembed_url = 'https://vimeo.com/api/oembed.json?url=' . rawurlencode( 'https://vimeo.com/' . $video_id );
-			$response   = wp_remote_get( $oembed_url, array( 'timeout' => 5, 'limit_response_size' => 65536 ) );
+			$response   = wp_remote_get(
+				$oembed_url,
+				array(
+					'timeout'             => 5,
+					'limit_response_size' => 65536,
+				)
+			);
 
 			if ( is_wp_error( $response ) || 200 !== wp_remote_retrieve_response_code( $response ) ) {
 				set_transient( $cache_key, 'none', HOUR_IN_SECONDS );
