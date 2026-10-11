@@ -44,6 +44,9 @@ class TVPG_Preview_Generator {
 
 	/** Return a usable derivative or the original. Never executes a process or HTTP request. */
 	public static function get_preview_url( $product_id, $original_url ): string {
+		if ( ! self::enabled() ) {
+			return is_string( $original_url ) ? $original_url : '';
+		}
 		$lifecycle = get_option( self::LIFECYCLE, array() );
 		return self::preview_url( $product_id, $original_url, ! empty( $lifecycle['enabled'] ) ? $lifecycle['epoch'] : '' );
 	}
@@ -107,6 +110,9 @@ class TVPG_Preview_Generator {
 	/** Enqueue after main video metadata changes; explicit saves also reset terminal failures. */
 	public static function meta_changed( $meta_id, $product_id, $key, $value ) {
 		unset( $meta_id, $value );
+		if ( ! self::enabled() ) {
+			return;
+		}
 		if ( '_tvpg_video_url' === $key && self::product( $product_id ) ) {
 			$source = self::source( get_post_meta( $product_id, $key, true ), true );
 			if ( $source ) {
@@ -128,6 +134,13 @@ class TVPG_Preview_Generator {
 	/** Check the object type before creating background work. */
 	private static function product( $id ) {
 		return is_numeric( $id ) && $id > 0 && in_array( get_post_type( (int) $id ), array( 'product', 'product_variation' ), true );
+	}
+
+	/** Read persisted settings so workers also observe changes made in another request. */
+	private static function enabled() {
+		$options = get_option( 'tvpg_options', array() );
+		return ! ( defined( 'TVPG_DISABLE_ARCHIVE_SWAP' ) && TVPG_DISABLE_ARCHIVE_SWAP )
+			&& ( ! isset( $options['archive_swap'] ) || (bool) $options['archive_swap'] );
 	}
 
 	/** Get uploads configuration without creating directories. */
@@ -228,6 +241,9 @@ class TVPG_Preview_Generator {
 
 	/** An atomic option insertion guards each source across all products using it. */
 	private static function queue( $product_id, $source, $epoch ) {
+		if ( ! self::enabled() ) {
+			return;
+		}
 		$name  = self::PREFIX . $source['key'];
 		$state = get_option( $name, array() );
 		if ( $state ) {
@@ -427,6 +443,10 @@ class TVPG_Preview_Generator {
 		if ( ! in_array( $state['state'] ?? '', array( 'queued', 'retry' ), true ) ) {
 			return;
 		}
+		if ( ! self::enabled() ) {
+			self::forget( $name, $state );
+			return;
+		}
 		if ( (int) ( $state['product_id'] ?? 0 ) !== (int) $product_id ) {
 			return; // An expired source claim may now belong to another product's scheduled action.
 		}
@@ -497,6 +517,11 @@ class TVPG_Preview_Generator {
 				if ( self::is_live( $epoch ) ) {
 					self::preview_url( $product_id, get_post_meta( $product_id, '_tvpg_video_url', true ), $epoch );
 				}
+				return;
+			}
+			self::invalidate( 'tvpg_options' );
+			if ( ! self::enabled() ) {
+				self::forget( $name, $state );
 				return;
 			}
 			// Retain prior ready files until success, but do not accumulate failed source revisions.

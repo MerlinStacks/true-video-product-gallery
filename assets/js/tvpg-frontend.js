@@ -204,10 +204,50 @@
     }
 
     function getIframeProvider(iframe) {
-        var src = iframe.getAttribute('src') || '';
-        if (src.indexOf('youtube') !== -1) return 'youtube';
-        if (src.indexOf('vimeo') !== -1) return 'vimeo';
+        var origin;
+        try { origin = new URL(iframe.getAttribute('src'), document.baseURI).origin; } catch (error) { return null; }
+        if (origin === YT_ORIGIN) return 'youtube';
+        if (origin === VM_ORIGIN) return 'vimeo';
         return null;
+    }
+
+    function bindProviderPlayers() {
+        mainSliderEl.querySelectorAll('iframe').forEach(function (iframe) {
+            var provider = getIframeProvider(iframe);
+            if (!provider || iframe.closest('.tvpg-lazy-facade') || iframe.__tvpgProviderBound) return;
+            iframe.__tvpgProviderBound = true;
+            function connect() {
+                clearTimeout(iframe.__tvpgReadyTimer);
+                iframe.__tvpgProviderReady = false;
+                var attempts = 0;
+                function handshake() {
+                    if (!iframe.isConnected || iframe.__tvpgProviderReady || attempts++ >= 40) return;
+                    if (iframe.contentWindow) {
+                        iframe.contentWindow.postMessage(provider === 'youtube' ?
+                            '{"event":"listening","id":1,"channel":"widget"}' : '{"method":"ping"}',
+                        provider === 'youtube' ? YT_ORIGIN : VM_ORIGIN);
+                    }
+                    iframe.__tvpgReadyTimer = setTimeout(handshake, 250);
+                }
+                handshake();
+            }
+            iframe.addEventListener('load', connect);
+            // Cached frames may have finished loading before this deferred script.
+            connect();
+        });
+    }
+
+    function providerReady(event, data) {
+        if (!data || !((event.origin === YT_ORIGIN && (data.event === 'onReady' || data.event === 'initialDelivery')) ||
+            (event.origin === VM_ORIGIN && (data.event === 'ready' || data.method === 'ping')))) return;
+        mainSliderEl.querySelectorAll('iframe').forEach(function (iframe) {
+            if (!iframe.__tvpgProviderBound || iframe.contentWindow !== event.source) return;
+            iframe.__tvpgProviderReady = true;
+            clearTimeout(iframe.__tvpgReadyTimer);
+            var slide = iframe.closest('.swiper-slide');
+            if (slide !== getActiveSlide() || reducedMotion || document.hidden || windowPaused || lightboxOverlay || !settings.autoplay) pauseVideo(slide);
+            else playVideo(slide);
+        });
     }
 
     function playVideo(slide) {
@@ -221,6 +261,7 @@
             var p = video.play();
             if (p !== undefined) p.catch(function () { /* browser policy */ });
         } else if (iframe && iframe.contentWindow) {
+            if (!iframe.closest('.tvpg-lazy-facade') && !iframe.__tvpgProviderReady) return;
             var provider = getIframeProvider(iframe);
             if (provider === 'youtube') {
                 if (settings.mute_autoplay) {
@@ -259,6 +300,7 @@
     }
 
     function refreshGallery() {
+        galleryWrapper.classList.toggle('tvpg-single-slide', mainSliderEl.querySelectorAll('.swiper-slide:not([hidden])').length <= 1);
         if (mainSlider) mainSlider.update();
         if (thumbSlider) thumbSlider.update();
         var active = getActiveSlide();
@@ -269,6 +311,7 @@
         });
         bindAllNativeVideoEnded();
         attachVideoErrorHandler(mainSliderEl);
+        bindProviderPlayers();
         syncGalleryAccessibility();
         syncThumbVideos();
         playVideo(active);
@@ -438,6 +481,7 @@
                     return;
                 }
             }
+            providerReady(event, ytData);
             if (ytData && ytData.info === 0) {
                 onIframeVideoEnded(event.source);
             }
@@ -453,6 +497,7 @@
                     return;
                 }
             }
+            providerReady(event, vmData);
             if (vmData && vmData.event === 'ended') {
                 onIframeVideoEnded(event.source);
             }
@@ -564,7 +609,6 @@
 
         var embedType = facade.getAttribute('data-embed-type');
         var videoId = facade.getAttribute('data-video-id');
-        var videoUrl = facade.getAttribute('data-video-url');
         if (!embedType || !videoId) return;
 
         // Show spinner.
@@ -579,11 +623,21 @@
         var embedContainer = document.createElement('div');
         embedContainer.className = 'tvpg-social-embed-inner';
 
+        var quote = document.createElement('blockquote');
         if (embedType === 'tiktok') {
-            embedContainer.innerHTML = '<blockquote class="tiktok-embed" cite="' + videoUrl + '" data-video-id="' + videoId + '" style="max-width:605px;min-width:325px;"><section></section></blockquote>';
+            quote.className = 'tiktok-embed';
+            // Attribute assignment keeps entity-decoded URLs as data, never HTML.
+            quote.setAttribute('cite', facade.getAttribute('data-video-url') || '');
+            quote.setAttribute('data-video-id', videoId);
+            quote.style.cssText = 'max-width:605px;min-width:325px;';
+            quote.appendChild(document.createElement('section'));
         } else if (embedType === 'instagram') {
-            embedContainer.innerHTML = '<blockquote class="instagram-media" data-instgrm-permalink="' + videoUrl + '" data-instgrm-version="14" style="max-width:540px;width:100%;"></blockquote>';
+            quote.className = 'instagram-media';
+            quote.setAttribute('data-instgrm-permalink', 'https://www.instagram.com/p/' + encodeURIComponent(videoId) + '/');
+            quote.setAttribute('data-instgrm-version', '14');
+            quote.style.cssText = 'max-width:540px;width:100%;';
         }
+        embedContainer.appendChild(quote);
 
         facade.appendChild(embedContainer);
         facade.classList.add('tvpg-loaded');
@@ -916,36 +970,14 @@
     var originalThumbAttributes = snapshotImage(firstImageThumb());
     var originalImageHref = firstImage && firstImage.closest('a') ? firstImage.closest('a').getAttribute('href') : null;
 
-    var videoSlide = mainSliderEl.querySelector('.swiper-slide.tvpg-video-slide');
+    var videoSlide = mainSliderEl.querySelector('.tvpg-product-video-slide');
     var galleryImageEl = videoSlide ? videoSlide.querySelector('.woocommerce-product-gallery__image') : null;
     var originalVideoHtml = galleryImageEl ? galleryImageEl.innerHTML : '';
+    var originalVideoIndex = videoSlide ? Array.from(videoSlide.parentNode.children).indexOf(videoSlide) : -1;
+    var originalVideoSlideHtml = videoSlide ? videoSlide.outerHTML : '';
 
-    var videoThumbSlide = galleryWrapper.querySelector('.tvpg-thumb-slider .swiper-slide.tvpg-video-thumb-slide');
-    var originalVideoThumbHtml = videoThumbSlide ? videoThumbSlide.innerHTML : '';
-
-    /**
-     * GHOST-BUG fix: restore original video HTML and clean stale facade state.
-     *
-     * Why: originalVideoHtml captures the lazy facade snapshot from page load.
-     * If the user clicked the facade (activating it into a live iframe), then
-     * a variation change restores the facade HTML — but with stale iframes and
-     * the tvpg-loaded class. This helper strips that stale state so the facade
-     * resets to its clean, clickable form.
-     */
-    function restoreCleanVideo(container) {
-        if (!container || !originalVideoHtml) return;
-        container.innerHTML = originalVideoHtml;
-        var restoredFacade = container.querySelector('.tvpg-lazy-facade');
-        if (restoredFacade) {
-            restoredFacade.classList.remove('tvpg-loaded');
-            var staleIframe = restoredFacade.querySelector('iframe');
-            if (staleIframe) staleIframe.remove();
-            var staleSpinner = restoredFacade.querySelector('.tvpg-loading-spinner');
-            if (staleSpinner) staleSpinner.remove();
-            var staleEmbed = restoredFacade.querySelector('.tvpg-social-embed-inner');
-            if (staleEmbed) staleEmbed.remove();
-        }
-    }
+    var videoThumbSlide = galleryWrapper.querySelector('.tvpg-product-video-thumb-slide');
+    var originalVideoThumbSlideHtml = videoThumbSlide ? videoThumbSlide.outerHTML : '';
 
     // ── IMP-02: MutationObserver (replaces 500ms polling) ────────────────────
     // Watches the video slide for theme overwrites and restores our content.
@@ -956,11 +988,13 @@
     function setExpectedVideoState(html) { currentVideoState = html; }
     function clearExpectedVideoState() { currentVideoState = null; }
 
-    if (videoSlide) {
-        var observerTarget = videoSlide.querySelector('.woocommerce-product-gallery__image') || videoSlide;
+    var observerTarget = mainSliderEl.querySelector('.swiper-wrapper');
+    if (observerTarget) {
         var observer = new MutationObserver(function () {
             if (!currentVideoState) return;
             if (isRestoring) return;
+            var videoSlide = mainSliderEl.querySelector('.tvpg-product-video-slide');
+            if (!videoSlide) return;
 
             var hasVideo = videoSlide.querySelector('video, iframe');
             var hasThemeImage = videoSlide.querySelector('img.wp-post-image');
@@ -1002,8 +1036,8 @@
         afterDomSettle(function () {
             clearAutoScrollTimer();
             pauseAllVideos();
-            var curVideoSlide = mainSliderEl.querySelector('.swiper-slide.tvpg-video-slide');
-            var curVideoThumbSlide = galleryWrapper.querySelector('.tvpg-thumb-slider .swiper-slide.tvpg-video-thumb-slide');
+            var curVideoSlide = mainSliderEl.querySelector('.tvpg-product-video-slide');
+            var curVideoThumbSlide = galleryWrapper.querySelector('.tvpg-product-video-thumb-slide');
             var curFirstImageSlide = mainSliderEl.querySelector('.swiper-slide:not(.tvpg-video-slide)');
             var curFirstImage = curFirstImageSlide ? curFirstImageSlide.querySelector('img') : null;
 
@@ -1034,20 +1068,13 @@
                     }
                 } else {
                     // Dynamic injection.
-                    var newSlideHtml = '<div class="swiper-slide tvpg-video-slide tvpg-dynamic-slide"><div class="woocommerce-product-gallery__image">' + safeVideoHtml + '</div></div>';
-                    var newThumbHtml = '<div class="swiper-slide tvpg-video-thumb-slide tvpg-dynamic-slide">' + (safeThumbHtml || '<span class="tvpg-play-icon"></span>') + '</div>';
-                    var hasPlaceholder = !!galleryWrapper.querySelector('.tvpg-placeholder-slide');
-                    var newIndex;
-
-                    if (hasPlaceholder) {
-                        if (mainSlider) { mainSlider.prependSlide(newSlideHtml); mainSlider.update(); }
-                        if (thumbSlider) { thumbSlider.prependSlide(newThumbHtml); thumbSlider.update(); }
-                        newIndex = 0;
-                    } else {
-                        if (mainSlider) { mainSlider.appendSlide(newSlideHtml); mainSlider.update(); }
-                        if (thumbSlider) { thumbSlider.appendSlide(newThumbHtml); thumbSlider.update(); }
-                        newIndex = (mainSlider && mainSlider.slides) ? mainSlider.slides.length - 1 : 0;
-                    }
+                    var newSlideHtml = '<div class="swiper-slide tvpg-video-slide tvpg-product-video-slide tvpg-dynamic-slide"><div class="woocommerce-product-gallery__image">' + safeVideoHtml + '</div></div>';
+                    var newThumbHtml = '<div class="swiper-slide tvpg-video-thumb-slide tvpg-product-video-thumb-slide tvpg-dynamic-slide">' + (safeThumbHtml || '<span class="tvpg-play-icon"></span>') + '</div>';
+                    var count = mainSliderEl.querySelectorAll('.swiper-slide').length;
+                    var newIndex = originalVideoIndex >= 0 ? originalVideoIndex :
+                        (settings.video_position === 'first' || galleryWrapper.querySelector('.tvpg-placeholder-slide') ? 0 :
+                            (settings.video_position === 'last' ? count : Math.min(1, count)));
+                    insertVideoSlides(newSlideHtml, newThumbHtml, newIndex);
 
                     if (mainSlider && mainSlider.slides) {
                         mainSlider.slideTo(newIndex);
@@ -1058,26 +1085,8 @@
                 }
             } else {
                 clearExpectedVideoState();
-                removeDynamicSlides();
-
-                var curStaticVideoSlide = curVideoSlide || mainSliderEl.querySelector('.swiper-slide.tvpg-video-slide');
-				if (variation.tvpg_has_video === false && curStaticVideoSlide && !curStaticVideoSlide.classList.contains('tvpg-dynamic-slide')) {
-					pauseVideo(curStaticVideoSlide);
-					curStaticVideoSlide.hidden = true;
-					if (curVideoThumbSlide) curVideoThumbSlide.hidden = true;
-					if (mainSlider) mainSlider.update();
-					if (thumbSlider) thumbSlider.update();
-				} else if (curStaticVideoSlide && originalVideoHtml && !curStaticVideoSlide.classList.contains('tvpg-dynamic-slide')) {
-                    curStaticVideoSlide.hidden = false;
-                    if (curVideoThumbSlide) curVideoThumbSlide.hidden = false;
-                    var c = curStaticVideoSlide.querySelector('.woocommerce-product-gallery__image');
-                    restoreCleanVideo(c);
-                    if (curVideoThumbSlide && originalVideoThumbHtml) {
-                        curVideoThumbSlide.innerHTML = originalVideoThumbHtml;
-                    }
-                    // Re-arm the MutationObserver to protect the restored content.
-                    setExpectedVideoState(c ? c.innerHTML : originalVideoHtml);
-                }
+                removeProductVideoSlides();
+                if (variation.tvpg_has_video !== false) restoreOriginalVideoSlides();
             }
 
             // 2. Handle Variation Image.
@@ -1110,27 +1119,37 @@
         });
     }
 
-    function removeDynamicSlides() {
-        if (!galleryWrapper.querySelector('.tvpg-dynamic-slide')) return;
+    function insertVideoSlides(slideHtml, thumbHtml, index) {
+        function insert(sliderEl, html) {
+            if (!sliderEl || !html) return;
+            var wrapper = sliderEl.querySelector('.swiper-wrapper');
+            var template = document.createElement('template');
+            template.innerHTML = html;
+            wrapper.insertBefore(template.content, wrapper.children[index] || null);
+        }
+        insert(mainSliderEl, slideHtml);
+        insert(thumbSliderEl, thumbHtml);
+        if (mainSlider) mainSlider.update();
+        if (thumbSlider) thumbSlider.update();
+    }
 
-        if (mainSlider) {
-            var indices = [];
-            Array.from(mainSlider.slides).forEach(function (s, i) {
-                if (s.classList.contains('tvpg-dynamic-slide')) indices.push(i);
-            });
-            indices.sort(function (a, b) { return b - a; });
-            indices.forEach(function (i) { mainSlider.removeSlide(i); });
-            mainSlider.update();
-        }
-        if (thumbSlider) {
-            var indicesT = [];
-            Array.from(thumbSlider.slides).forEach(function (s, i) {
-                if (s.classList.contains('tvpg-dynamic-slide')) indicesT.push(i);
-            });
-            indicesT.sort(function (a, b) { return b - a; });
-            indicesT.forEach(function (i) { thumbSlider.removeSlide(i); });
-            thumbSlider.update();
-        }
+    function removeProductVideoSlides() {
+        // Remove rather than hide: Swiper's slide grids exclude display:none slides,
+        // while its slides array still includes them, making indices disagree.
+        [[mainSliderEl, mainSlider, '.tvpg-product-video-slide'],
+            [thumbSliderEl, thumbSlider, '.tvpg-product-video-thumb-slide']].forEach(function (entry) {
+            if (!entry[0]) return;
+            var slide = entry[0].querySelector(entry[2]);
+            if (!slide) return;
+            if (entry[1]) entry[1].removeSlide(Array.from(slide.parentNode.children).indexOf(slide));
+            else slide.remove();
+        });
+    }
+
+    function restoreOriginalVideoSlides() {
+        if (!originalVideoSlideHtml) return;
+        insertVideoSlides(originalVideoSlideHtml, originalVideoThumbSlideHtml, originalVideoIndex);
+        setExpectedVideoState(originalVideoHtml);
     }
 
     // BUG-H6 fix: removed duplicate vanilla listener for found_variation.
@@ -1165,23 +1184,9 @@
             // Restore the thumbnail slider's first image as well.
             restoreImage(firstImageThumb(), originalThumbAttributes);
 
-            removeDynamicSlides();
-
-            // GHOST-BUG fix: restore video with clean facade state,
-            // THEN re-arm the observer. Previous code cleared the observer
-            // first, leaving a window where theme overwrites were unprotected.
-            var curVideoSlide = mainSliderEl.querySelector('.swiper-slide.tvpg-video-slide');
-            if (curVideoSlide && originalVideoHtml && !curVideoSlide.classList.contains('tvpg-dynamic-slide')) {
-				curVideoSlide.hidden = false;
-				if (videoThumbSlide) videoThumbSlide.hidden = false;
-                if (videoThumbSlide && originalVideoThumbHtml) videoThumbSlide.innerHTML = originalVideoThumbHtml;
-                var c = curVideoSlide.querySelector('.woocommerce-product-gallery__image');
-                restoreCleanVideo(c);
-                // Re-arm the observer AFTER restoring — not before.
-                setExpectedVideoState(c ? c.innerHTML : originalVideoHtml);
-            } else {
-                clearExpectedVideoState();
-            }
+            clearExpectedVideoState();
+            removeProductVideoSlides();
+            restoreOriginalVideoSlides();
 
             if (mainSlider) {
                 mainSlider.update();

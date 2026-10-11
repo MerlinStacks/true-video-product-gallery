@@ -5,7 +5,7 @@ Tags: woocommerce, video, product gallery, youtube, vimeo, tiktok, instagram
 Requires at least: 6.4
 Tested up to: 7.1
 Requires PHP: 8.0
-Stable tag: 1.7.18
+Stable tag: 1.7.20
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -70,6 +70,14 @@ Yes, this plugin requires WooCommerce to be installed and active.
 4. Global settings page with preload options
 
 == Changelog ==
+
+= 1.7.20 =
+* Fixed unsafe HTML insertion when loading social video embeds.
+* Fixed variation video removal, native WooCommerce video preservation, and navigation when videos are added dynamically.
+* Direct YouTube/Vimeo players now wait for provider readiness and respect active-slide and reduced-motion playback guards.
+* Disabling archive swapping also stops new preview generation and queued workers.
+* Added WooCommerce product-form video controls with media selection and correct metadata persistence.
+* Image lightboxes now use the full-size attachment.
 
 = 1.7.18 =
 * Replaced the manual category-preview upload field with automatic background generation from the existing local product video.

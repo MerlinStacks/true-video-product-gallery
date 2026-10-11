@@ -97,6 +97,20 @@ class TVPG_Archive_Video_Test extends TestCase {
 		$this->assertFalse( call_user_func( $args['auth_callback'] ) );
 	}
 
+	public function test_woocommerce_product_form_integration_is_registered_outside_admin_requests(): void {
+		$editor = new TVPG_Block_Editor();
+		$this->assertTrue( has_action( 'woocommerce_block_template_area_product-form_after_add_block_general', array( $editor, 'add_product_editor_section' ) ) );
+		$group = new class {
+			public $section;
+			public $block;
+			public function add_section( $args ) { $this->section = $args; return $this; }
+			public function add_block( $args ) { $this->block = $args; }
+		};
+		$editor->add_product_editor_section( $group );
+		$this->assertSame( 'Product Video', $group->section['attributes']['title'] );
+		$this->assertSame( 'tvpg/product-video', $group->block['blockName'] );
+	}
+
 	public function test_classic_panel_explains_automatic_generation_and_escapes_saved_status(): void {
 		$GLOBALS['post'] = (object) array( 'ID' => 1 );
 		update_post_meta( 1, '_tvpg_video_url', 'https://example.com/main.mp4' );

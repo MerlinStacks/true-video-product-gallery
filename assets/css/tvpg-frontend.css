@@ -53,6 +53,10 @@
     /* Ensure video cover crop logic works works */
 }
 
+.tvpg-gallery-wrapper .swiper-slide[hidden] {
+    display: none !important;
+}
+
 /* ==========================================================================
    Navigation Arrows — override Swiper's default '::after' text with our SVGs
    ========================================================================== */

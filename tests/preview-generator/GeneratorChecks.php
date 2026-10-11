@@ -38,6 +38,34 @@ final class GeneratorChecks extends TestCase {
 		return $GLOBALS['preview_jobs'][0]['args'][1];
 	}
 
+	public function test_disabled_archive_does_not_resolve_or_queue_on_save(): void {
+		update_option( 'tvpg_options', array( 'archive_swap' => false ) );
+		$GLOBALS['preview_lookups'] = 0;
+		TVPG_Preview_Generator::product_saved( 1 );
+		$this->assertSame( $this->url, TVPG_Preview_Generator::get_preview_url( 1, $this->url ) );
+		$this->assertSame( 0, $GLOBALS['preview_lookups'] );
+		$this->assertSame( array(), $GLOBALS['preview_jobs'] );
+	}
+
+	public function test_queued_job_stops_when_archive_is_disabled_and_can_retry_after_enable(): void {
+		$key = $this->queue();
+		update_option( 'tvpg_options', array( 'archive_swap' => false ) );
+		$this->process( 1, $key );
+		$this->assertFalse( get_option( TVPG_Preview_Generator::PREFIX . $key ) );
+		update_option( 'tvpg_options', array( 'archive_swap' => true ) );
+		TVPG_Preview_Generator::get_preview_url( 1, $this->url );
+		$this->process( 1, $key );
+		$this->assertSame( 'ready', get_option( TVPG_Preview_Generator::PREFIX . $key )['state'] );
+	}
+
+	public function test_constant_disables_preview_work_even_with_setting_enabled(): void {
+		$result = $this->subprocess(
+			'define("TVPG_DISABLE_ARCHIVE_SWAP", true); update_option("tvpg_options", array("archive_swap" => true));'
+			. 'TVPG_Preview_Generator::product_saved(1); TVPG_Preview_Generator::get_preview_url(1, $url); print json_encode($GLOBALS["preview_jobs"]);'
+		);
+		$this->assertSame( array(), $result );
+	}
+
 	private function process( $id, $key ): void {
 		$state = get_option( TVPG_Preview_Generator::PREFIX . $key, array() );
 		TVPG_Preview_Generator::process( $id, $key, $state['epoch'] ?? '' );

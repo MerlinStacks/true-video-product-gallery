@@ -105,8 +105,9 @@ class TVPG_Video_Embed {
 	 * @return string HTML markup.
 	 */
 	private static function get_youtube_html( $info, $settings, $sizing_class, $aria_label, $preload_mode, $poster ) {
-		$id           = $info['id'];
-		$use_autoplay = ( 'lazy' === $preload_mode ) ? 1 : ( $settings['autoplay'] ? 1 : 0 );
+		$id = $info['id'];
+		// Click-to-load facades request playback explicitly; direct players wait for readiness.
+		$use_autoplay = 'lazy' === $preload_mode ? 1 : 0;
 		$params       = array(
 			'enablejsapi' => 1,
 			'origin'      => home_url(),
@@ -116,7 +117,7 @@ class TVPG_Video_Embed {
 			'loop'        => $settings['loop'] ? 1 : 0,
 			'playlist'    => $settings['loop'] ? $id : '',
 		);
-		if ( $use_autoplay && $settings['mute_autoplay'] ) {
+		if ( ( $use_autoplay || $settings['autoplay'] ) && $settings['mute_autoplay'] ) {
 			$params['mute'] = 1;
 		}
 		$query     = http_build_query( $params );
@@ -143,14 +144,14 @@ class TVPG_Video_Embed {
 	 */
 	private static function get_vimeo_html( $info, $settings, $sizing_class, $aria_label, $preload_mode, $poster ) {
 		$id           = $info['id'];
-		$use_autoplay = ( 'lazy' === $preload_mode ) ? 1 : ( $settings['autoplay'] ? 1 : 0 );
+		$use_autoplay = 'lazy' === $preload_mode ? 1 : 0;
 		$params       = array(
 			'api'      => 1,
 			'autoplay' => $use_autoplay,
 			'loop'     => $settings['loop'] ? 1 : 0,
 			'controls' => $settings['show_controls'] ? 1 : 0,
 		);
-		if ( $use_autoplay && $settings['mute_autoplay'] ) {
+		if ( ( $use_autoplay || $settings['autoplay'] ) && $settings['mute_autoplay'] ) {
 			$params['muted'] = 1;
 		}
 		$query     = http_build_query( $params );
@@ -161,7 +162,7 @@ class TVPG_Video_Embed {
 			return self::get_lazy_facade_html( $embed_url, $thumb_url, $sizing_class, $aria_label, 'vimeo' );
 		}
 
-		return '<div class="tvpg-responsive-video ' . esc_attr( $sizing_class ) . '"><iframe src="' . esc_url( $embed_url ) . '" style="border:none;" allowfullscreen loading="lazy" fetchpriority="low" title="' . $aria_label . '" referrerpolicy="strict-origin-when-cross-origin"></iframe></div>';
+		return '<div class="tvpg-responsive-video ' . esc_attr( $sizing_class ) . '"><iframe src="' . esc_url( $embed_url ) . '" style="border:none;" allowfullscreen allow="autoplay; fullscreen; picture-in-picture" loading="lazy" fetchpriority="low" title="' . $aria_label . '" referrerpolicy="strict-origin-when-cross-origin"></iframe></div>';
 	}
 
 	/**

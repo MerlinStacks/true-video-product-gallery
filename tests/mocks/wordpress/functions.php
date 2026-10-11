@@ -191,11 +191,12 @@ function get_post_meta( $post_id, $key, $single = false ) {
 }
 
 function wp_get_attachment_image( $attachment_id, $size, $icon, $attr ) {
+	$GLOBALS['tvpg_test_image_request'] = array( 'id' => $attachment_id, 'size' => $size, 'attributes' => $attr );
 	return '';
 }
 
 function wp_get_attachment_image_url( $attachment_id, $size ) {
-	return 'https://example.com/image.jpg';
+	return $GLOBALS['tvpg_test_image_urls'][ $attachment_id ][ $size ] ?? 'https://example.com/image.jpg';
 }
 
 function wp_get_attachment_url( $id ) {

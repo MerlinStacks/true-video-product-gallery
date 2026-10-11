@@ -217,10 +217,11 @@ class TVPG_Gallery_Renderer {
 		if ( ! empty( $video_url ) ) {
 			$custom_thumb = get_post_meta( $product->get_id(), '_tvpg_video_thumb_url', true );
 			$video_slide  = array(
-				'type'      => 'video',
-				'url'       => $video_url,
-				'thumb_id'  => $main_image_id,
-				'thumb_url' => $custom_thumb,
+				'is_product_video' => true,
+				'type'             => 'video',
+				'url'              => $video_url,
+				'thumb_id'         => $main_image_id,
+				'thumb_url'        => $custom_thumb,
 			);
 
 			if ( 'first' === $position ) {
@@ -256,6 +257,9 @@ class TVPG_Gallery_Renderer {
 						if ( 'video' === $slide['type'] ) {
 							$slide_classes .= ' tvpg-video-slide';
 						}
+						if ( ! empty( $slide['is_product_video'] ) ) {
+							$slide_classes .= ' tvpg-product-video-slide';
+						}
 						if ( $is_placeholder ) {
 							$slide_classes .= ' tvpg-placeholder-slide';
 						}
@@ -282,6 +286,7 @@ class TVPG_Gallery_Renderer {
 											'sizes'    => '(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 600px',
 										);
 									}
+									$img_attrs['data-large_image'] = wp_get_attachment_image_url( $slide['id'], 'full' );
 									echo wp_get_attachment_image( $slide['id'], 'woocommerce_single', false, $img_attrs );
 								}
 							} elseif ( 'video' === $slide['type'] ) {
@@ -292,7 +297,7 @@ class TVPG_Gallery_Renderer {
 						</div>
 					<?php endforeach; ?>
 				</div>
-				<?php if ( count( $slides ) > 1 ) : ?>
+				<?php if ( count( $slides ) > 1 || self::is_variable_product() ) : ?>
 				<button type="button" class="swiper-button-next" aria-label="<?php esc_attr_e( 'Next slide', 'true-video-product-gallery' ); ?>"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M9 5l7 7-7 7"/></svg></button>
 				<button type="button" class="swiper-button-prev" aria-label="<?php esc_attr_e( 'Previous slide', 'true-video-product-gallery' ); ?>"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M15 19l-7-7 7-7"/></svg></button>
 				<?php endif; ?>
@@ -323,7 +328,7 @@ class TVPG_Gallery_Renderer {
 							? sprintf( /* translators: %d: slide number */ esc_attr__( 'Video thumbnail, slide %d', 'true-video-product-gallery' ), $slide_idx + 1 )
 							: sprintf( /* translators: %d: slide number */ esc_attr__( 'Image thumbnail, slide %d', 'true-video-product-gallery' ), $slide_idx + 1 );
 						?>
-						<div class="swiper-slide <?php echo 'video' === $slide['type'] ? 'tvpg-video-thumb-slide' : ''; ?>" tabindex="0" aria-label="<?php echo esc_attr( $thumb_label ); ?>" role="button">
+						<div class="swiper-slide <?php echo 'video' === $slide['type'] ? 'tvpg-video-thumb-slide' : ''; ?> <?php echo ! empty( $slide['is_product_video'] ) ? 'tvpg-product-video-thumb-slide' : ''; ?>" tabindex="0" aria-label="<?php echo esc_attr( $thumb_label ); ?>" role="button">
 						<?php
 						if ( 'image' === $slide['type'] ) {
 							if ( ! empty( $slide['is_placeholder'] ) || 0 === $slide['id'] ) {
@@ -366,5 +371,11 @@ class TVPG_Gallery_Renderer {
 				</div>
 			</div>
 		<?php
+	}
+
+	/** Determine whether variation selection can add gallery slides. */
+	private static function is_variable_product() {
+		global $product;
+		return $product instanceof WC_Product && $product->is_type( 'variable' );
 	}
 }

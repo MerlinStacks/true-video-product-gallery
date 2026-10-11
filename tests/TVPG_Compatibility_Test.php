@@ -56,5 +56,8 @@ class TVPG_Compatibility_Test extends TestCase {
 
 		$this->assertSame( array( 'image', 'video', 'image' ), array_column( $slides, 'type' ) );
 		$this->assertSame( 30, $slides[1]['thumb_id'] );
+		$slides = $method->invoke( null, 10, array( 11 ), 'https://example.com/custom.mp4', 'last', $product, $media_items );
+		$this->assertArrayNotHasKey( 'is_product_video', $slides[1] );
+		$this->assertTrue( $slides[3]['is_product_video'] );
 	}
 }

@@ -23,6 +23,9 @@ Flatsome loop cards can bypass standard WooCommerce thumbnail filters.
 If you use Elementor Pro's "Product Images" widget, it uses its own internal renderer and ignores standard WooCommerce gallery plugins.
 *   **Fix**: Do not use the "Product Images" widget. Instead, use the "Product Content" widget or a specific "WooCommerce Hook" widget that renders the `woocommerce_before_single_product_summary` hook.
 
+### 2.1 Product editors
+The classic Product Video tab remains available. WooCommerce's product-form block editor (template API in WooCommerce 8.2+) receives a Product Video section under General with video/thumbnail media pickers and the shared-variation-video toggle. Its fields use WooCommerce's `meta_data` entity property. WordPress-based product document editors retain the sidebar using registered `meta` fields.
+
 ### 3. AJAX / Quick View Plugins
 Our gallery initializes when the page loads (via deferred vanilla JS).
 *   **Symptom**: The gallery looks broken or empty in a "Quick View" popup.
@@ -63,6 +66,8 @@ Archive cards inserted into an existing product grid are initialized automatical
 Upload/select the product video once in **Product Video** settings and save the product. No separate category upload is required. With archive swapping enabled, shop/category cards automatically use a generated lightweight preview when ready, while product pages retain the original video. Existing products can queue generation when they appear in an archive. The previous manual preview field has been removed and its stored value is ignored.
 
 Generation uses the first **up to eight seconds**, removes audio, limits the longest side to **480 pixels** without upscaling, and produces a **24 fps H.264 MP4** with faststart. Only a successfully decoded output smaller than the original is used. All eligible visible videos may continue playing together. Processing is asynchronous, never run as part of rendering a category page.
+
+Disabling archive swapping (including `TVPG_DISABLE_ARCHIVE_SWAP`) prevents saves from resolving/queuing previews and makes pending workers exit before encoding. Completed derivatives remain cached for re-enabling; an encoder already running may finish.
 
 **Hosting requirements:** PHP `proc_open`, writable uploads and temporary directories, working Action Scheduler or WP-Cron, and FFmpeg with `libx264` and the seekable **`fd` input protocol**. FFmpeg 7.0.2 was tested; an older or differently built binary without the required capabilities will retain the original. The plugin does not install FFmpeg. A hosting administrator can point to a trusted executable in `wp-config.php`:
 

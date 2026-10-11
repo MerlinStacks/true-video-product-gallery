@@ -153,4 +153,34 @@ class TVPG_Performance_Test extends TestCase {
 		$this->assertArrayHasKey( 'data-src', $allowed['video'] );
 		$this->assertArrayHasKey( 'data-poster', $allowed['video'] );
 	}
+
+	public function test_image_rendering_passes_original_zoom_url_and_keeps_navigation_for_variable_products(): void {
+		$GLOBALS['product'] = new class extends WC_Product {
+			public function is_type( $type ) { return 'variable' === $type; }
+		};
+		$GLOBALS['tvpg_test_image_urls'][10] = array( 'full' => 'https://example.com/original.jpg' );
+		try {
+			ob_start();
+			$this->invoke( TVPG_Gallery_Renderer::class, 'render_main_slider', array( array( 'type' => 'image', 'id' => 10 ) ) );
+			$html = ob_get_clean();
+			$this->assertSame( 'woocommerce_single', $GLOBALS['tvpg_test_image_request']['size'] );
+			$this->assertSame( 'https://example.com/original.jpg', $GLOBALS['tvpg_test_image_request']['attributes']['data-large_image'] );
+			$this->assertStringContainsString( 'swiper-button-next', $html );
+			$this->assertStringContainsString( 'swiper-button-prev', $html );
+		} finally {
+			unset( $GLOBALS['product'], $GLOBALS['tvpg_test_image_urls'], $GLOBALS['tvpg_test_image_request'] );
+		}
+	}
+
+	public function test_direct_iframes_never_autoplay_from_the_url_and_allow_controlled_playback(): void {
+		$settings = array_merge( TVPG_Settings::get_defaults(), array( 'autoplay' => true ) );
+		foreach ( array( 'youtube', 'vimeo' ) as $provider ) {
+			foreach ( array( 'auto', 'metadata' ) as $mode ) {
+				$html = $this->invoke( TVPG_Video_Embed::class, 'get_' . $provider . '_html', array( 'id' => '123' ), $settings, 'tvpg-video-contain', 'Video', $mode, '' );
+				$this->assertStringContainsString( 'autoplay=0', $html );
+				$this->assertStringNotContainsString( 'autoplay=1', $html );
+				$this->assertMatchesRegularExpression( '/allow="[^"]*autoplay/', $html );
+			}
+		}
+	}
 }

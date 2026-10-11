@@ -3,6 +3,21 @@
 
 ## [Unreleased]
 
+## [1.7.20] - 2026-10-11
+### Security
+- Build social embed elements with DOM APIs so entity-decoded product URLs cannot inject executable HTML.
+
+### Fixed
+- Isolate the variation-managed video from native WooCommerce media; remove unavailable slides from both Swiper grids and restore the original on reset.
+- Update single-slide navigation after variation changes and retain navigation controls for initially single-image variable products.
+- Disable URL-level autoplay on direct YouTube/Vimeo players and wait for provider readiness before applying playback guards.
+- Respect the archive setting and emergency override before preview resolution, queuing and encoding.
+- Register video controls in WooCommerce's product-form editor, preserving media selection and using its `meta_data` persistence contract; retain the WordPress document sidebar.
+- Supply full-size attachment URLs to the image lightbox.
+
+### Tests
+- Add social-embed injection, variation/native-video, dynamic navigation, provider readiness, editor persistence/screen routing, preview-disable and full-size image regressions.
+
 ## [1.7.18] - 2026-09-14
 ### Changed
 - Replaced manual preview uploads with automatic background generation from the existing local WordPress product-video attachment. Legacy manual preview metadata is ignored.

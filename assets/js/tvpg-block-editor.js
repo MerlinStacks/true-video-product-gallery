@@ -11,18 +11,12 @@
 (function () {
     'use strict';
 
-    var registerPlugin = wp.plugins.registerPlugin;
     var PluginDocumentSettingPanel = (wp.editor && wp.editor.PluginDocumentSettingPanel) || (wp.editPost && wp.editPost.PluginDocumentSettingPanel);
     var el = wp.element.createElement;
-    var useState = wp.element.useState;
     var useEntityProp = wp.coreData.useEntityProp;
     var TextControl = wp.components.TextControl;
     var Button = wp.components.Button;
     var __ = wp.i18n.__;
-
-    if (!PluginDocumentSettingPanel) {
-        return;
-    }
 
     /**
      * Why: wp.media integration requires a callback approach because
@@ -151,30 +145,20 @@
     /**
      * Main panel component rendered inside the product editor sidebar.
      */
-    function ProductVideoPanel() {
-        var entityPropArgs = ['postType', 'product'];
-        var metaProp = useEntityProp(entityPropArgs[0], entityPropArgs[1], 'meta');
-
-        // Registered post meta is exposed through the entity's `meta` prop.
-        var meta = metaProp[0] || {};
-        var setMeta = metaProp[1];
+    function ProductVideoFields(props) {
+        var meta = props.meta;
         var videoValue = meta._tvpg_video_url || '';
         var thumbValue = meta._tvpg_video_thumb_url || '';
 
         function setVideoValue(value) {
-            setMeta(Object.assign({}, meta, { _tvpg_video_url: value }));
+            props.setField('_tvpg_video_url', value);
         }
 
         function setThumbValue(value) {
-            setMeta(Object.assign({}, meta, { _tvpg_video_thumb_url: value }));
+            props.setField('_tvpg_video_thumb_url', value);
         }
 
-        return el(PluginDocumentSettingPanel, {
-            name: 'tvpg-product-video',
-            title: __('Product Video', 'true-video-product-gallery'),
-            icon: 'video-alt3',
-            className: 'tvpg-block-panel'
-        },
+        return el('div', { className: 'tvpg-block-panel' },
             // Video URL input.
             el(TextControl, {
                 label: __('Video URL', 'true-video-product-gallery'),
@@ -228,6 +212,12 @@
                 }, __('Clear', 'true-video-product-gallery'))
             ),
 
+            el(wp.components.ToggleControl, {
+                label: __('Use main product video for all variations', 'true-video-product-gallery'),
+                checked: meta._tvpg_use_same_video === 'yes',
+                onChange: function (value) { props.setField('_tvpg_use_same_video', value ? 'yes' : 'no'); }
+            }),
+
             // Live preview.
             videoValue && el('div', { style: { marginTop: '8px' } },
                 el('p', {
@@ -245,10 +235,48 @@
         );
     }
 
-    registerPlugin('tvpg-product-video', {
-        render: function () {
-            return el(ProductVideoPanel);
-        },
-        icon: 'video-alt3'
-    });
+    function ProductVideoPanel() {
+        var prop = useEntityProp('postType', 'product', 'meta');
+        var meta = prop[0] || {};
+        return el(PluginDocumentSettingPanel, {
+            name: 'tvpg-product-video', title: __('Product Video', 'true-video-product-gallery'), icon: 'video-alt3'
+        }, el(ProductVideoFields, {
+            meta: meta,
+            setField: function (key, value) { prop[1](Object.assign({}, meta, { [key]: value })); }
+        }));
+    }
+
+    function WooProductVideoBlock(props) {
+        // WooCommerce's editor persists metadata through wc/v3 `meta_data`, not WP `meta`.
+        var prop = useEntityProp('postType', props.context.postType || 'product', 'meta_data');
+        var metadata = prop[0] || [];
+        var meta = {};
+        metadata.forEach(function (item) { meta[item.key] = item.value; });
+        return el('div', window.wc.blockTemplates.useWooBlockProps(props.attributes), el(ProductVideoFields, {
+            meta: meta,
+            setField: function (key, value) {
+                var found = false;
+                var next = metadata.map(function (item) {
+                    if (item.key !== key) return item;
+                    found = true;
+                    return Object.assign({}, item, { value: value });
+                });
+                if (!found) next.push({ key: key, value: value });
+                prop[1](next);
+            }
+        }));
+    }
+
+    if (typeof tvpgEditorContext !== 'undefined' && tvpgEditorContext.woocommerce) {
+        window.wc.productEditor.registerProductEditorBlockType({
+            name: 'tvpg/product-video',
+            metadata: {
+                apiVersion: 3, title: __('Product Video', 'true-video-product-gallery'), category: 'woocommerce',
+                usesContext: ['postId', 'postType'], supports: { inserter: false, html: false, reusable: false, multiple: false }
+            },
+            settings: { edit: WooProductVideoBlock, save: function () { return null; } }
+        });
+    } else if (PluginDocumentSettingPanel && wp.plugins) {
+        wp.plugins.registerPlugin('tvpg-product-video', { render: ProductVideoPanel, icon: 'video-alt3' });
+    }
 })();
