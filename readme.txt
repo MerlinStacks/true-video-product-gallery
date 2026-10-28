@@ -5,7 +5,7 @@ Tags: woocommerce, video, product gallery, youtube, vimeo, tiktok, instagram
 Requires at least: 6.4
 Tested up to: 7.1
 Requires PHP: 8.0
-Stable tag: 1.7.20
+Stable tag: 1.7.22
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -70,6 +70,15 @@ Yes, this plugin requires WooCommerce to be installed and active.
 4. Global settings page with preload options
 
 == Changelog ==
+
+= 1.7.22 =
+* Removed the Pause slideshow control below the gallery.
+* Fixed lazy-loading placeholders being saved and restored as the first image and thumbnail during variation resets.
+* Excluded the initially visible product image and thumbnail from lazy loading.
+
+= 1.7.21 =
+* Added SLDevs-hosted plugin updates using bundled Plugin Update Checker 5.7.
+* Updates remain available when WooCommerce is inactive. Automatic updates remain an administrator choice.
 
 = 1.7.20 =
 * Fixed unsafe HTML insertion when loading social video embeds.

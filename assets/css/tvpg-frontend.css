@@ -5,6 +5,11 @@
     /* WooThumbs often relies on theme's column width, but we force 100% of container */
 }
 
+/* Hide the retired slideshow control, including buttons from cached scripts. */
+.tvpg-gallery-wrapper .tvpg-autoscroll-toggle {
+    display: none !important;
+}
+
 /* Responsive video centered within slide */
 .tvpg-responsive-video {
     width: 100%;

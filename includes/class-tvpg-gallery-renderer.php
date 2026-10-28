@@ -281,9 +281,11 @@ class TVPG_Gallery_Renderer {
 									if ( 0 === $slide_index ) {
 										$img_attrs = array(
 											'fetchpriority' => 'high',
-											'loading'  => 'eager',
-											'decoding' => 'sync',
-											'sizes'    => '(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 600px',
+											'loading'       => 'eager',
+											'class'         => 'attachment-woocommerce_single size-woocommerce_single skip-lazy',
+											'data-no-lazy'  => '1',
+											'decoding'      => 'sync',
+											'sizes'         => '(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 600px',
 										);
 									}
 									$img_attrs['data-large_image'] = wp_get_attachment_image_url( $slide['id'], 'full' );
@@ -339,6 +341,11 @@ class TVPG_Gallery_Renderer {
 									'fetchpriority' => 'low',
 									'decoding'      => 'async',
 								);
+								if ( 0 === $slide_idx ) {
+									$thumb_attrs['loading']      = 'eager';
+									$thumb_attrs['class']        = 'attachment-woocommerce_thumbnail size-woocommerce_thumbnail skip-lazy';
+									$thumb_attrs['data-no-lazy'] = '1';
+								}
 								echo wp_get_attachment_image( $slide['id'], 'woocommerce_thumbnail', false, $thumb_attrs );
 							}
 						} elseif ( 'video' === $slide['type'] ) {

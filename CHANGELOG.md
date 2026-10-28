@@ -3,6 +3,19 @@
 
 ## [Unreleased]
 
+## [1.7.22] - 2026-10-12
+### Changed
+- Removed the Pause slideshow control below the gallery.
+
+### Fixed
+- Resolve deferred image sources before saving the original image and thumbnail for variation resets, preventing grey placeholders from being restored.
+- Exclude the initially visible product image and thumbnail from lazy loading.
+
+## [1.7.21] - 2026-10-12
+### Added
+- SLDevs-hosted updates and plugin information using pinned Plugin Update Checker 5.7, initialized independently of WooCommerce.
+- Repeatable validated release packaging with bundled updater dependencies and licenses.
+
 ## [1.7.20] - 2026-10-11
 ### Security
 - Build social embed elements with DOM APIs so entity-decoded product URLs cannot inject executable HTML.

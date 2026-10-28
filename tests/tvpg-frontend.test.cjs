@@ -81,6 +81,21 @@ function setup(t, { reduced = false, single = false, videoFirst = false, fallbac
     };
 }
 
+test('legacy slideshow controls stay hidden in source and production styles', t => {
+    const app = setup(t);
+    const control = app.document.createElement('button');
+    control.className = 'tvpg-autoscroll-toggle';
+    control.textContent = 'Pause slideshow';
+    app.wrapper.appendChild(control);
+    for (const suffix of ['', '.min']) {
+        const style = app.document.createElement('style');
+        style.textContent = readFileSync(join(__dirname, `../assets/css/tvpg-frontend${suffix}.css`), 'utf8');
+        app.document.head.appendChild(style);
+        assert.equal(app.window.getComputedStyle(control).display, 'none');
+        style.remove();
+    }
+});
+
 test('plugin constructor wins; compatible legacy global still initializes', t => {
     const app = setup(t);
     assert.equal(app.window.Swiper, app.themeSwiper);
@@ -99,7 +114,7 @@ test('missing Swiper leaves setup untouched; retry emits readiness exactly once 
         assert.equal(event.target, app.wrapper);
         assert.ok(event instanceof app.window.CustomEvent);
         assert.equal(el.__tvpgInitialized, true);
-        assert.equal(app.wrapper.querySelectorAll('.tvpg-autoscroll-toggle').length, 1);
+        assert.equal(app.wrapper.querySelectorAll('.tvpg-autoscroll-toggle').length, 0);
         // Synchronous handoff exercises slide handlers and the late lightbox setup.
         const slider = el.swiper;
         slider.appendSlide('<div class="swiper-slide oc-live-preview-slide"><img src="preview.jpg"></div>');
@@ -122,7 +137,7 @@ test('missing Swiper leaves setup untouched; retry emits readiness exactly once 
     assert.equal(ready, 1);
     assert.equal(app.instances.length, 2);
     assert.equal(el.swiper.activeIndex, 2);
-    assert.equal(app.wrapper.querySelectorAll('.tvpg-autoscroll-toggle').length, 1);
+    assert.equal(app.wrapper.querySelectorAll('.tvpg-autoscroll-toggle').length, 0);
     app.key(app.document.activeElement, 'Escape');
     assert.equal(app.document.querySelector('.tvpg-lightbox'), null);
 });
@@ -244,7 +259,7 @@ test('static and dynamically inserted thumbnails support keyboard activation and
     assert.equal(app.main.slides[1].querySelector('video').playing, true);
 });
 
-test('autoscroll pauses for visibility, window blur, gallery focus and explicit pause', t => {
+test('autoscroll pauses for visibility, window blur and gallery focus without a slideshow control', t => {
     const app = setup(t);
     const scheduled = () => [...app.timers.values()].some(timer => timer.delay === 4000);
     assert.equal(scheduled(), true);
@@ -261,15 +276,7 @@ test('autoscroll pauses for visibility, window blur, gallery focus and explicit 
     app.document.querySelector('#outside').focus();
     app.runTimers(0);
     assert.equal(scheduled(), true);
-    const control = app.document.querySelector('.tvpg-autoscroll-toggle');
-    control.click();
-    assert.equal(scheduled(), false);
-    assert.equal(control.textContent, 'Resume slideshow');
-    app.visibility(true);
-    app.visibility(false);
-    assert.equal(scheduled(), false);
-    control.click();
-    assert.equal(scheduled(), true);
+    assert.equal(app.document.querySelector('.tvpg-autoscroll-toggle'), null);
 });
 
 test('reduced motion suppresses autoplay and transitions and responds to preference changes', t => {
@@ -277,7 +284,7 @@ test('reduced motion suppresses autoplay and transitions and responds to prefere
     assert.equal(app.main.params.speed, 0);
     app.document.querySelectorAll('video').forEach(video => assert.equal(video.plays || 0, 0));
     assert.equal(app.timers.size, 0);
-    assert.equal(app.document.querySelector('.tvpg-autoscroll-toggle').disabled, true);
+    assert.equal(app.document.querySelector('.tvpg-autoscroll-toggle'), null);
     app.motion.matches = false;
     app.motion.change();
     app.main.slideTo(1);
@@ -288,6 +295,38 @@ test('reduced motion suppresses autoplay and transitions and responds to prefere
     assert.equal(app.timers.size, 0);
     app.document.querySelectorAll('video').forEach(video => assert.equal(video.playing, false));
 });
+
+for (const prefix of ['data-', 'data-lazy-']) {
+    test(`initial variation reset restores real images rather than ${prefix} placeholders`, t => {
+        const app = setup(t, { beforeInit(window) {
+            window.document.querySelectorAll('.tvpg-main-slider img, .tvpg-thumb-slider img').forEach(image => {
+                for (const name of ['src', 'srcset', 'sizes']) {
+                    image.setAttribute(prefix + name, image.getAttribute(name));
+                    image.removeAttribute(name);
+                }
+                image.setAttribute('src', 'data:image/gif;base64,R0lGODlhAQABAAAAACw=');
+                image.setAttribute('loading', 'lazy');
+            });
+        } });
+        const image = app.document.querySelector('.tvpg-main-slider img');
+        const thumb = app.document.querySelector('.tvpg-thumb-slider img');
+        assert.equal(image.getAttribute('src'), 'original.jpg');
+        assert.equal(thumb.getAttribute('src'), 'thumb.jpg');
+        assert.equal(image.getAttribute('loading'), 'eager');
+        app.reset();
+        app.flushFrames();
+        assert.equal(image.getAttribute('src'), 'original.jpg');
+        assert.equal(thumb.getAttribute('src'), 'thumb.jpg');
+        app.variation({ image: { src: 'variant.jpg', gallery_thumbnail_src: 'variant-thumb.jpg' } });
+        app.flushFrames();
+        app.reset();
+        app.flushFrames();
+        assert.equal(image.getAttribute('srcset'), 'original.jpg 800w');
+        assert.equal(image.getAttribute('sizes'), '80vw');
+        assert.equal(thumb.getAttribute('srcset'), 'thumb.jpg 100w');
+        assert.equal(thumb.getAttribute('src'), 'thumb.jpg');
+    });
+}
 
 test('variation image/thumbnail responsive attributes and zoom target reset independently', t => {
     const app = setup(t);

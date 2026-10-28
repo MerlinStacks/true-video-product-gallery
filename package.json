@@ -1,9 +1,10 @@
 {
   "name": "true-video-product-gallery",
-  "version": "1.7.20",
+  "version": "1.7.22",
   "private": true,
   "description": "Build tools for True Video Product Gallery assets",
   "scripts": {
+    "release": "npm run build && python3 tools/package-release.py",
     "build:swiper": "rollup -c rollup.config.mjs",
     "build:js": "terser assets/js/tvpg-frontend.js -o assets/js/tvpg-frontend.min.js --compress --mangle && terser assets/js/tvpg-archive.js -o assets/js/tvpg-archive.min.js --compress --mangle && terser assets/js/tvpg-admin-product.js -o assets/js/tvpg-admin-product.min.js --compress --mangle && terser assets/js/tvpg-admin-settings.js -o assets/js/tvpg-admin-settings.min.js --compress --mangle && terser assets/js/tvpg-block-editor.js -o assets/js/tvpg-block-editor.min.js --compress --mangle",
     "build:css": "cleancss assets/css/tvpg-frontend.css -o assets/css/tvpg-frontend.min.css && cleancss assets/css/tvpg-archive.css -o assets/css/tvpg-archive.min.css && cleancss assets/css/tvpg-admin.css -o assets/css/tvpg-admin.min.css",

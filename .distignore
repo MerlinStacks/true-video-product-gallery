@@ -15,3 +15,8 @@
 /phpcs.xml
 /phpunit.xml
 /rollup.config.mjs
+/tools
+/dist
+/release-notes
+/RELEASING.md
+/.editorconfig

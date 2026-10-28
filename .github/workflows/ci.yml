@@ -63,6 +63,6 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run test:js
-      - run: npm run build
+      - run: npm run release
       - name: Verify committed assets match their sources
         run: git diff --exit-code -- assets/

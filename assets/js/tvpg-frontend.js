@@ -124,10 +124,8 @@
     var rawSettings = (typeof tvpgParams !== 'undefined' && tvpgParams.settings) || {};
     var motionQuery = window.matchMedia ? window.matchMedia('(prefers-reduced-motion: reduce)') : null;
     var reducedMotion = !!(motionQuery && motionQuery.matches);
-    var userPaused = false;
     var focusPaused = galleryWrapper.contains(document.activeElement);
     var windowPaused = false;
-    var pauseControl = null;
     var settings = {
         autoplay: toBool(rawSettings.autoplay),
         gallery_autoscroll: toBool(rawSettings.gallery_autoscroll),
@@ -325,7 +323,7 @@
         // PersonaliseIt previews must stay selected, including when a timer is already pending.
         var active = getActiveSlide();
         if (active && active.classList.contains('oc-live-preview-slide')) return false;
-        return mainSlider && settings.gallery_autoscroll && !reducedMotion && !userPaused && !focusPaused && !windowPaused && !document.hidden && !lightboxOverlay && galleryWrapper.isConnected;
+        return mainSlider && settings.gallery_autoscroll && !reducedMotion && !focusPaused && !windowPaused && !document.hidden && !lightboxOverlay && galleryWrapper.isConnected;
     }
 
     function clearAutoScrollTimer() {
@@ -399,17 +397,11 @@
         });
     }
 
-    function updatePauseControl() {
-        if (!pauseControl) return;
-        pauseControl.textContent = reducedMotion ? 'Gallery motion disabled' : (userPaused ? 'Resume slideshow' : 'Pause slideshow');
-        pauseControl.disabled = reducedMotion;
-    }
-
     function syncThumbVideos() {
         if (!thumbSliderEl) return;
         thumbSliderEl.querySelectorAll('video').forEach(function (video) {
             video.removeAttribute('autoplay');
-            if (reducedMotion || document.hidden || windowPaused || focusPaused || userPaused || lightboxOverlay || video.closest('[hidden]')) {
+            if (reducedMotion || document.hidden || windowPaused || focusPaused || lightboxOverlay || video.closest('[hidden]')) {
                 video.pause();
             } else {
                 video.muted = true;
@@ -419,19 +411,6 @@
         });
     }
 
-    if (mainSlider && settings.gallery_autoscroll) {
-        pauseControl = document.createElement('button');
-        pauseControl.type = 'button';
-        pauseControl.className = 'tvpg-autoscroll-toggle';
-        updatePauseControl();
-        galleryWrapper.appendChild(pauseControl);
-        pauseControl.addEventListener('click', function () {
-            userPaused = !userPaused;
-            updatePauseControl();
-            syncThumbVideos();
-            scheduleAutoAdvanceForActiveSlide();
-        });
-    }
     galleryWrapper.addEventListener('focusin', function () {
         focusPaused = true;
         clearAutoScrollTimer();
@@ -455,7 +434,6 @@
             if (lightboxOverlay) lightboxOverlay.style.transition = reducedMotion ? 'none' : '';
             if (reducedMotion) pauseAllVideos();
             syncThumbVideos();
-            updatePauseControl();
             scheduleAutoAdvanceForActiveSlide();
         };
         if (motionQuery.addEventListener) motionQuery.addEventListener('change', onMotionChange);
@@ -942,6 +920,20 @@
     // so we don't write to a detached node if the theme replaced the element.
     var firstImageSlide = mainSliderEl.querySelector('.swiper-slide:not(.tvpg-video-slide)');
     var firstImage = firstImageSlide ? firstImageSlide.querySelector('img') : null;
+    // Optimizers can replace src with a grey placeholder before this script runs.
+    // Resolve deferred sources before saving originals for WooCommerce resets.
+    function loadOriginalImage(image) {
+        if (!image) return;
+        ['sizes', 'srcset', 'src'].forEach(function (name) {
+            var value = image.getAttribute('data-lazy-' + name) || image.getAttribute('data-' + name);
+            if (value) image.setAttribute(name, value);
+            image.removeAttribute('data-lazy-' + name);
+            image.removeAttribute('data-' + name);
+        });
+        image.setAttribute('loading', 'eager');
+    }
+    loadOriginalImage(firstImage);
+    loadOriginalImage(firstImageThumb());
     var originalImage = {
         src: firstImage ? firstImage.getAttribute('src') : '',
         srcset: firstImage ? firstImage.getAttribute('srcset') : '',

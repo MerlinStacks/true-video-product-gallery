@@ -1,12 +1,15 @@
 # Build tools
 node_modules/
 vendor/
+!includes/plugin-update-checker/vendor/
+!includes/plugin-update-checker/vendor/**
 .phpunit.result.cache
 .phpunit.cache/
 coverage/
 
 # Plugin distribution
 *.zip
+/dist/
 
 # IDE / Editor
 .vscode/

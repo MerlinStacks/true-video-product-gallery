@@ -2,7 +2,8 @@
 /**
  * Plugin Name: True Video Product Gallery
  * Description: A powerful product gallery plugin for WooCommerce with video support, zoom, and customizable layouts.
- * Version: 1.7.20
+ * Version: 1.7.22
+ * Update URI: https://sldevs.com.au/updates/true-video-product-gallery/
  * Author: SLDevs
  * Author URI: https://sldevs.com
  * Requires at least: 6.4
@@ -22,8 +23,16 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
+// Register updates independently of WooCommerce availability.
+require_once __DIR__ . '/includes/plugin-update-checker/plugin-update-checker.php';
+\YahnisElsts\PluginUpdateChecker\v5\PucFactory::buildUpdateChecker(
+	'https://sldevs.com.au/updates/true-video-product-gallery/info.json',
+	__FILE__,
+	'true-video-product-gallery'
+);
+
 // Define plugin constants.
-define( 'TVPG_VERSION', '1.7.20' );
+define( 'TVPG_VERSION', '1.7.22' );
 define( 'TVPG_PATH', plugin_dir_path( __FILE__ ) );
 define( 'TVPG_URL', plugin_dir_url( __FILE__ ) );
 

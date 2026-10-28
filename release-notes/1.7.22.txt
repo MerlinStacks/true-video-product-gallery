@@ -1,0 +1,8 @@
+True Video Product Gallery 1.7.22
+
+Removed the Pause slideshow control below the gallery.
+Fixed lazy-loading placeholders being saved and restored as the first product image
+and thumbnail when WooCommerce resets variations.
+Excluded the initially visible product image and thumbnail from lazy loading.
+
+Requires WordPress 6.4+, PHP 8.0+, and WooCommerce 8.0+.

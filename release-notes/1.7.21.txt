@@ -1,0 +1,10 @@
+True Video Product Gallery 1.7.21
+
+Added plugin updates and plugin information served by SLDevs.
+Bundled Plugin Update Checker 5.7 with its runtime dependencies and licenses.
+Update checks remain available when WooCommerce is inactive.
+Automatic updates are not enabled automatically; administrators retain control.
+
+Requires WordPress 6.4+, PHP 8.0+, and WooCommerce 8.0+.
+Existing installations must install this updater-enabled release once manually
+or through their current update mechanism to receive future SLDevs updates.

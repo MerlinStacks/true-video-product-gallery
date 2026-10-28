@@ -21,6 +21,7 @@
     },
     "scripts": {
         "test": [
+            "@php tests/updater-smoke.php",
             "@test:unit",
             "@test:previews"
         ],
